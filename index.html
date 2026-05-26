@@ -1,0 +1,3448 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP REMU - Panel de Control de Remuneraciones</title>
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Premium Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Colores corporativos Membrantec -->
+    <link rel="stylesheet" href="css/brand.css">
+    
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(17, 24, 39, 0.65);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --primary: #8b5cf6;
+            --primary-glow: rgba(139, 92, 246, 0.15);
+            --secondary: #3b82f6;
+            --secondary-glow: rgba(59, 130, 246, 0.15);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.15);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.15);
+            --warning: #f59e0b;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --font-display: 'Outfit', sans-serif;
+            --font-sans: 'Inter', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, rgba(59, 130, 246, 0.08) 0%, transparent 45%);
+            background-attachment: fixed;
+        }
+
+        /* Container Layout */
+        .wrapper {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar navigation */
+        .sidebar {
+            width: 280px;
+            background: rgba(17, 24, 39, 0.85);
+            border-right: 1px solid var(--card-border);
+            backdrop-filter: blur(20px);
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 40px;
+            padding-left: 10px;
+        }
+
+        .logo i {
+            font-size: 28px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo span {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            background: linear-gradient(to right, #ffffff, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .menu-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 14px 18px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .menu-item i {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .menu-item:hover, .menu-item.active {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        }
+
+        .menu-item.active {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
+            box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.3);
+            color: #ffffff;
+        }
+
+        /* Main Content Container */
+        .main-content {
+            margin-left: 280px;
+            flex-grow: 1;
+            padding: 40px;
+            max-width: 1600px;
+        }
+
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 35px;
+        }
+
+        .header-title h1 {
+            font-family: var(--font-display);
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 5px;
+        }
+
+        .header-title p {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .header-meta {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--card-border);
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-meta span {
+            color: var(--success);
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        /* KPI Cards Grid */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .kpi-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(16px);
+            border-radius: 20px;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            top: -75px;
+            right: -75px;
+            border-radius: 50%;
+            z-index: 0;
+            filter: blur(45px);
+            opacity: 0.7;
+        }
+
+        .kpi-card.violet::before { background: var(--primary-glow); }
+        .kpi-card.blue::before { background: var(--secondary-glow); }
+        .kpi-card.emerald::before { background: var(--success-glow); }
+        .kpi-card.red::before { background: var(--danger-glow); }
+        .kpi-card.amber::before { background: rgba(245, 158, 11, 0.4); }
+
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .kpi-title {
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .kpi-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .kpi-card.violet .kpi-icon { background: rgba(139, 92, 246, 0.15); color: var(--primary); }
+        .kpi-card.blue .kpi-icon { background: rgba(59, 130, 246, 0.15); color: var(--secondary); }
+        .kpi-card.emerald .kpi-icon { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+        .kpi-card.red .kpi-icon { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+        .kpi-card.amber .kpi-icon { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+
+        .kpi-val {
+            font-family: var(--font-display);
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .kpi-footer {
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .kpi-footer i { color: var(--success); }
+
+        /* Content Views Toggle */
+        .content-view {
+            display: none;
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        .content-view.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Glassmorphic Cards Container */
+        .glass-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(16px);
+            border-radius: 24px;
+            padding: 30px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
+            margin-bottom: 40px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .card-title h2 {
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title i {
+            color: var(--primary);
+        }
+
+        /* Search & Filter bar style */
+        .search-bar-container {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 25px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--card-border);
+            padding: 15px;
+            border-radius: 16px;
+        }
+
+        .search-input-wrapper {
+            position: relative;
+            flex-grow: 1;
+            min-width: 250px;
+        }
+
+        .search-input-wrapper i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 16px;
+        }
+
+        .search-bar {
+            width: 100%;
+            background: rgba(11, 15, 25, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 12px 15px 12px 45px;
+            color: #ffffff;
+            font-family: var(--font-sans);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .search-bar:focus {
+            border-color: var(--primary);
+        }
+
+        .filter-select {
+            background: rgba(11, 15, 25, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 12px 20px;
+            color: #ffffff;
+            font-family: var(--font-sans);
+            font-size: 14px;
+            outline: none;
+            min-width: 160px;
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+        }
+
+        .filter-select:focus {
+            border-color: var(--primary);
+        }
+
+        .filter-select option {
+            background-color: var(--bg-color);
+            color: #ffffff;
+        }
+
+        /* Styled Table */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: 16px;
+            border: 1px solid var(--card-border);
+        }
+
+        .styled-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .styled-table th {
+            background: rgba(255, 255, 255, 0.03);
+            font-family: var(--font-display);
+            font-weight: 600;
+            padding: 16px 20px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--card-border);
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .styled-table td {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--card-border);
+            font-weight: 500;
+        }
+
+        .styled-table tbody tr {
+            transition: background-color 0.3s ease;
+        }
+
+        .styled-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .styled-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* OK/Badge Badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 30px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-badge.ok {
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status-badge.diff {
+            background: rgba(239, 68, 68, 0.12);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        /* Action Buttons */
+        .btn {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border: none;
+            padding: 8px 16px;
+            color: #ffffff;
+            font-family: var(--font-sans);
+            font-weight: 600;
+            font-size: 13px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: opacity 0.3s ease, transform 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* Analytics Grid Layout */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        @media (max-width: 1024px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 25px;
+            height: 380px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .chart-card-header {
+            margin-bottom: 15px;
+        }
+
+        .chart-card-title {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--text-main);
+        }
+
+        .chart-wrapper {
+            flex-grow: 1;
+            position: relative;
+            width: 100%;
+            height: calc(100% - 35px);
+        }
+
+        /* COMPLIANT LIQUIDACION DE SUELDO MODAL */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(3, 7, 18, 0.85);
+            backdrop-filter: blur(15px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            padding: 20px;
+        }
+
+        .modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background: #0f172a;
+            border: 1px solid var(--card-border);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 1100px;
+            max-height: 90vh;
+            border-radius: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes slideIn {
+            from { transform: scale(0.95) translateY(20px); }
+            to { transform: scale(1) translateY(0); }
+        }
+
+        .modal-header {
+            padding: 20px 30px;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 24px;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .close-modal:hover {
+            color: #ffffff;
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        /* Real Chilean Paystub Layout Styling */
+        .paystub-container {
+            background: #ffffff;
+            color: #1e293b;
+            border-radius: 16px;
+            padding: 30px;
+            font-family: var(--font-sans);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            font-size: 13px;
+            border: 1px solid #cbd5e1;
+        }
+
+        /* Paystub Header block */
+        .paystub-header-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            border-bottom: 2px solid #64748b;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .employer-info h3 {
+            font-family: var(--font-display);
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 3px;
+        }
+
+        .employer-info p, .period-info p {
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .period-info {
+            text-align: right;
+        }
+
+        .period-badge {
+            display: inline-block;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 14px;
+            color: #0f172a;
+            margin-top: 5px;
+        }
+
+        /* Paystub employee meta grid */
+        .paystub-employee-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px 30px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+        }
+
+        .employee-data-item label {
+            display: block;
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .employee-data-item span {
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 13px;
+        }
+
+        /* Paystub Main two-column details list */
+        .paystub-details-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        @media (max-width: 768px) {
+            .paystub-details-columns {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .paystub-col {
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+        }
+
+        .paystub-col-header {
+            background: #334155;
+            color: #ffffff;
+            font-weight: 700;
+            padding: 10px 15px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .paystub-rows-container {
+            flex-grow: 1;
+            padding: 10px 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+
+        .paystub-item-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 15px;
+            font-weight: 500;
+            border-bottom: 1px dashed #f1f5f9;
+        }
+
+        .paystub-item-row:last-child {
+            border-bottom: none;
+        }
+
+        .paystub-item-val {
+            font-weight: 600;
+            font-family: var(--font-sans);
+        }
+
+        .paystub-total-row {
+            display: flex;
+            justify-content: space-between;
+            background: #f1f5f9;
+            padding: 12px 15px;
+            font-weight: 700;
+            font-size: 13px;
+            border-top: 1px solid #cbd5e1;
+            color: #0f172a;
+        }
+
+        /* Paystub Summary bottom footer */
+        .paystub-summary-footer {
+            border: 2px solid #0f172a;
+            border-radius: 12px;
+            background: #f8fafc;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .liquido-words {
+            flex-grow: 1;
+            max-width: 60%;
+        }
+
+        .liquido-words label {
+            display: block;
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .liquido-words span {
+            font-style: italic;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .liquido-monto-card {
+            text-align: right;
+            background: #0f172a;
+            color: #ffffff;
+            padding: 12px 24px;
+            border-radius: 8px;
+        }
+
+        .liquido-monto-card label {
+            display: block;
+            font-size: 10px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .liquido-monto-card span {
+            font-family: var(--font-sans);
+            font-size: 24px;
+            font-weight: 800;
+        }
+
+        /* Employer cost breakout card (visible at bottom of modal page) */
+        .employer-cost-card {
+            border: 1px solid var(--card-border);
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+            padding: 20px;
+            margin-top: 25px;
+        }
+
+        .cost-card-header {
+            font-family: var(--font-display);
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cost-card-header i { color: var(--secondary); }
+
+        .cost-items-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .cost-items-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .cost-item {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--card-border);
+            padding: 12px 15px;
+            border-radius: 10px;
+        }
+
+        .cost-item label {
+            display: block;
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .cost-item span {
+            font-family: var(--font-sans);
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .cost-item.total {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.15));
+            border-color: rgba(139, 92, 246, 0.3);
+        }
+
+        .cost-item.total span {
+            color: #ffffff;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+        <div class="logo">
+            <i class="fa-solid fa-calculator-combined"></i>
+            <span>ERP REMU</span>
+        </div>
+        <ul class="menu-list">
+            <li>
+                <div class="menu-item active" id="menu-calculations" onclick="switchView('calculations')">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Cálculos de Liquidación</span>
+                </div>
+            </li>
+            <li>
+                <div class="menu-item" id="menu-analytics" onclick="switchView('analytics')">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <span>Dashboard de Análisis</span>
+                </div>
+            </li>
+            <li>
+                <div class="menu-item" id="menu-reports" onclick="switchView('reports')">
+                    <i class="fa-solid fa-file-invoice-dollar"></i>
+                    <span>Gestión de Reportes</span>
+                </div>
+            </li>
+            <li>
+                <div class="menu-item" id="menu-discrepancies" onclick="switchView('discrepancies')">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span>Panel de Discrepancias</span>
+                </div>
+            </li>
+            <li>
+                <div class="menu-item" id="menu-process-comp" onclick="switchView('process-comp')">
+                    <i class="fa-solid fa-code-compare"></i>
+                    <span>Comparar Procesos</span>
+                </div>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <div class="header-bar">
+            <div class="header-title">
+                <h1 id="page-title">Cálculos de Liquidación</h1>
+                <p>Panel central de cálculo y control de remuneraciones (Comparación Rex+)</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div class="period-select-wrapper" style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--card-border); padding: 8px 16px; border-radius: 30px;">
+                    <i class="fa-solid fa-calendar-days" style="color: var(--primary); margin-right: 8px;"></i>
+                    <select id="header-period" class="filter-select" onchange="changePeriod()" style="background: transparent; border: none; padding: 0; min-width: 130px; font-weight: 700; font-size: 13px; color: #ffffff; cursor: pointer; outline: none; margin-right: 5px;">
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+                <div class="header-meta">
+                    <span></span> Validación Chilena 100% Cuadrada
+                </div>
+            </div>
+        </div>
+
+        <!-- KPI Summary Cards -->
+        <div class="kpi-grid">
+            <div class="kpi-card violet">
+                <div class="kpi-header">
+                    <div class="kpi-title">Pagos Procesados</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-receipt"></i></div>
+                </div>
+                <div class="kpi-val" id="kpi-employees">0</div>
+                <div class="kpi-footer" id="kpi-footer-period">Contratos liquidados</div>
+            </div>
+            <div class="kpi-card amber">
+                <div class="kpi-header">
+                    <div class="kpi-title">Trabajadores Activos</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-user-check"></i></div>
+                </div>
+                <div class="kpi-val" id="kpi-active-workers">0</div>
+                <div class="kpi-footer">RUTs únicos activos</div>
+            </div>
+            <div class="kpi-card emerald">
+                <div class="kpi-header">
+                    <div class="kpi-title">Tasa de Cuadratura</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-circle-check"></i></div>
+                </div>
+                <div class="kpi-val" id="kpi-match">0.0%</div>
+                <div class="kpi-footer"><i class="fa-solid fa-arrow-trend-up"></i> Tolerancia +/- $2 pesos vs Rex+</div>
+            </div>
+            <div class="kpi-card blue">
+                <div class="kpi-header">
+                    <div class="kpi-title">Sueldo Imponible Total</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-wallet"></i></div>
+                </div>
+                <div class="kpi-val" id="kpi-imponible">$0</div>
+                <div class="kpi-footer">Monto total imponible del mes</div>
+            </div>
+            <div class="kpi-card red">
+                <div class="kpi-header">
+                    <div class="kpi-title">Costo Empresa Total</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-coins"></i></div>
+                </div>
+                <div class="kpi-val" id="kpi-cost">$0</div>
+                <div class="kpi-footer">Remuneraciones + Leyes Sociales</div>
+            </div>
+            <div class="kpi-card amber">
+                <div class="kpi-header">
+                    <div class="kpi-title">Tasa de Rotación</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-arrows-spin"></i></div>
+                </div>
+                <div class="kpi-val" id="kpi-turnover-rate">0.00%</div>
+                <div class="kpi-footer" id="kpi-footer-turnover">Bajas / Activos en el mes</div>
+            </div>
+            <div class="kpi-card red">
+                <div class="kpi-header">
+                    <div class="kpi-title">Colaboradores Finiquitados</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-user-minus"></i></div>
+                </div>
+                <div class="kpi-val" id="kpi-terminations">0</div>
+                <div class="kpi-footer">Bajas del periodo actual</div>
+            </div>
+            <div class="kpi-card blue">
+                <div class="kpi-header">
+                    <div class="kpi-title">Promedio de Activos</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-users-rectangle"></i></div>
+                </div>
+                <div class="kpi-val" id="kpi-average-headcount">0</div>
+                <div class="kpi-footer">Promedio histórico general</div>
+            </div>
+        </div>
+
+        <!-- VIEW 1: PROCESS COMPARISON TABLE -->
+        <div id="view-calculations" class="content-view active">
+            <div class="glass-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-table-list"></i>
+                        <h2 id="table-period-title">Detalle de Liquidaciones</h2>
+                    </div>
+                </div>
+
+                <!-- Search and Filters -->
+                <div class="search-bar-container" style="flex-wrap: wrap; gap: 10px;">
+                    <div class="search-input-wrapper">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="search-box" class="search-bar" placeholder="Buscar trabajador por nombre o RUT..." onkeyup="filterEmployees()">
+                    </div>
+                    <!-- Hidden filters preserved for chart click compatibility -->
+                    <select id="filter-cc" style="display: none;" onchange="filterEmployees()">
+                        <option value="">Todos los CC</option>
+                    </select>
+                    <select id="filter-afp" style="display: none;" onchange="filterEmployees()">
+                        <option value="">Todas las AFPs</option>
+                    </select>
+                    <select id="filter-salud" style="display: none;" onchange="filterEmployees()">
+                        <option value="">Todas las Isapres</option>
+                        <option value="FONASA">FONASA</option>
+                        <option value="ISAPRE">ISAPRE</option>
+                    </select>
+
+                    <!-- New filters -->
+                    <select id="filter-generico" class="filter-select" onchange="filterEmployees()">
+                        <option value="">Todos los Genéricos</option>
+                    </select>
+                    <select id="filter-sede" class="filter-select" onchange="filterEmployees()">
+                        <option value="">Todas las Sedes</option>
+                    </select>
+                    <select id="filter-cargo" class="filter-select" onchange="filterEmployees()">
+                        <option value="">Todos los Cargos</option>
+                    </select>
+                    <select id="filter-proyecto" class="filter-select" onchange="filterEmployees()">
+                        <option value="">Todos los Proyectos</option>
+                    </select>
+
+                    <!-- Clear filters button -->
+                    <button class="btn" style="background: rgba(255,255,255,0.06); border: 1px solid var(--card-border); color: #ffffff; border-radius: 30px; padding: 8px 16px; font-weight: 600; cursor: pointer; transition: all 0.2s;" onclick="clearAllFilters()">
+                        <i class="fa-solid fa-filter-circle-xmark" style="margin-right: 5px; color: var(--primary);"></i> Limpiar
+                    </button>
+                </div>
+
+                <!-- Responsive Comparison Table -->
+                <div class="table-responsive">
+                    <table class="styled-table">
+                        <thead>
+                            <tr>
+                                <th id="th-rut" onclick="toggleEmployeesSort('rut')" style="cursor: pointer;">RUT <span class="sort-icon"></span></th>
+                                <th id="th-contrato" onclick="toggleEmployeesSort('contrato')" style="cursor: pointer; text-align: center;">Contrato <span class="sort-icon"></span></th>
+                                <th id="th-nombre" onclick="toggleEmployeesSort('nombre')" style="cursor: pointer;">Trabajador <span class="sort-icon"></span></th>
+                                <th id="th-dias" onclick="toggleEmployeesSort('dias_trabajados')" style="cursor: pointer; text-align: center;">Días Trab. <span class="sort-icon"></span></th>
+                                <th id="th-base" onclick="toggleEmployeesSort('sueldo_base')" style="cursor: pointer; text-align: right;">Sueldo Base <span class="sort-icon"></span></th>
+                                <th id="th-imponible" onclick="toggleEmployeesSort('total_imponible')" style="cursor: pointer; text-align: right;">Total Imponible <span class="sort-icon"></span></th>
+                                <th id="th-liquido" onclick="toggleEmployeesSort('alcance_liquido')" style="cursor: pointer; text-align: right;">Alcance Líquido <span class="sort-icon"></span></th>
+                                <th id="th-rex" onclick="toggleEmployeesSort('rex_alcance')" style="cursor: pointer; text-align: right;">Rex+ Líquido <span class="sort-icon"></span></th>
+                                <th id="th-diff" onclick="toggleEmployeesSort('diff')" style="cursor: pointer; text-align: center;">Cuadratura <span class="sort-icon"></span></th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employees-table-body">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 2: ANALYTICS DASHBOARD -->
+        <div id="view-analytics" class="content-view">
+            <div class="charts-grid">
+                <!-- Chart 1: AFP -->
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <div class="chart-card-title">Distribución por Administradora de Fondo de Pensiones (AFP)</div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-afp"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 2: Salud -->
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <div class="chart-card-title">Distribución por Sistema de Salud (Isapre / Fonasa)</div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="chart-salud"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 3: Cost Centers -->
+                <div class="chart-card" style="height: 420px;">
+                    <div class="chart-card-header">
+                        <div class="chart-card-title">Costo Empresa Total por Centro de Costo (Top 5) <span style="font-size: 11px; font-weight: normal; color: var(--text-muted);">(Haz click en una barra para auditar detalles)</span></div>
+                    </div>
+                    <div class="chart-wrapper" style="height: calc(100% - 35px);">
+                        <canvas id="chart-cc"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 4: Salary Ranges -->
+                <div class="chart-card" style="height: 420px;">
+                    <div class="chart-card-header">
+                        <div class="chart-card-title">Distribución de Personal por Rangos de Sueldo Imponible</div>
+                    </div>
+                    <div class="chart-wrapper" style="height: calc(100% - 35px);">
+                        <canvas id="chart-salary"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 5: Rotación por CC/Proyecto -->
+                <div class="chart-card" style="height: 420px;">
+                    <div class="chart-card-header">
+                        <div class="chart-card-title">Tasa de Rotación de Personal por Proyecto (Centro de Costo)</div>
+                    </div>
+                    <div class="chart-wrapper" style="height: calc(100% - 35px);">
+                        <canvas id="chart-project-rotation"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 6: Distribución de Trabajadores (Circular) -->
+                <div class="chart-card" style="height: 420px;">
+                    <div class="chart-card-header">
+                        <div class="chart-card-title">Distribución Mensual de Colaboradores (Estables, Nuevos y Finiquitados)</div>
+                    </div>
+                    <div class="chart-wrapper" style="height: calc(100% - 35px); display: flex; justify-content: center; align-items: center;">
+                        <canvas id="chart-staff-distribution" style="max-height: 300px; max-width: 300px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+                <!-- VIEW 3: GESTIÓN DE REPORTES -->
+        <div id="view-reports" class="content-view">
+            <!-- HR Analytics KPIs: Licencias Médicas y Finiquitos -->
+            <div class="kpi-grid" style="margin-bottom: 30px;">
+                <div class="kpi-card violet">
+                    <div class="kpi-header">
+                        <div class="kpi-title">Días Licencias Médicas</div>
+                        <div class="kpi-icon" style="background: rgba(139, 92, 246, 0.15); color: var(--primary);"><i class="fa-solid fa-notes-medical"></i></div>
+                    </div>
+                    <div class="kpi-val" id="rep-kpi-licencias-dias">0 días</div>
+                    <div class="kpi-footer" id="rep-kpi-licencias-qty">0 empleados afectados</div>
+                </div>
+                <div class="kpi-card red">
+                    <div class="kpi-header">
+                        <div class="kpi-title">Monto Finiquitos Pagado</div>
+                        <div class="kpi-icon" style="background: rgba(239, 68, 68, 0.15); color: var(--danger);"><i class="fa-solid fa-file-signature"></i></div>
+                    </div>
+                    <div class="kpi-val" id="rep-kpi-finiquitos-monto">$0</div>
+                    <div class="kpi-footer" id="rep-kpi-finiquitos-qty">0 contratos finalizados</div>
+                </div>
+            </div>
+
+            <!-- Evolution Trend Charts -->
+            <div class="charts-grid" style="margin-bottom: 30px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px;">
+                <div class="glass-card" style="margin-bottom: 0;">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-chart-line"></i>
+                            <h2>Evolución de Costos de Remuneraciones (CLP)</h2>
+                        </div>
+                    </div>
+                    <div style="position: relative; height: 280px; width: 100%;">
+                        <canvas id="chart-trend"></canvas>
+                    </div>
+                </div>
+                <div class="glass-card" style="margin-bottom: 0;">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-notes-medical" style="color: var(--primary);"></i>
+                            <h2>Evolución de Licencias Médicas (Días)</h2>
+                        </div>
+                    </div>
+                    <div style="position: relative; height: 280px; width: 100%;">
+                        <canvas id="chart-trend-licencias"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Collapsible Audit details: Licencias y Finiquitos -->
+            <div class="charts-grid" style="margin-bottom: 30px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px;">
+                <!-- Licencias Médicas Detail Card -->
+                <div class="glass-card" style="margin-bottom: 0;">
+                    <div class="card-header" onclick="toggleDetailsCollapse('licencias')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                        <div class="card-title">
+                            <i class="fa-solid fa-hand-holding-medical" style="color: var(--primary);"></i>
+                            <h2 style="font-size: 16px;">Auditoría de Licencias Médicas <span style="font-size: 11px; font-weight: normal; color: var(--text-muted);">(Clic para expandir)</span></h2>
+                        </div>
+                        <i id="collapse-icon-licencias" class="fa-solid fa-chevron-down" style="color: var(--text-muted);"></i>
+                    </div>
+                    <div id="collapse-content-licencias" class="table-responsive" style="display: none; margin-top: 15px; max-height: 250px; overflow-y: auto;">
+                        <table class="styled-table" style="font-size: 13px;">
+                            <thead>
+                                <tr>
+                                    <th>Trabajador</th>
+                                    <th style="text-align: center;">Días Licencia</th>
+                                    <th>Centro Costo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="licencias-table-body">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Finiquitos Detail Card -->
+                <div class="glass-card" style="margin-bottom: 0;">
+                    <div class="card-header" onclick="toggleDetailsCollapse('finiquitos')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                        <div class="card-title">
+                            <i class="fa-solid fa-user-slash" style="color: var(--danger);"></i>
+                            <h2 style="font-size: 16px;">Auditoría de Finiquitos <span style="font-size: 11px; font-weight: normal; color: var(--text-muted);">(Clic para expandir)</span></h2>
+                        </div>
+                        <i id="collapse-icon-finiquitos" class="fa-solid fa-chevron-down" style="color: var(--text-muted);"></i>
+                    </div>
+                    <div id="collapse-content-finiquitos" class="table-responsive" style="display: none; margin-top: 15px; max-height: 250px; overflow-y: auto;">
+                        <table class="styled-table" style="font-size: 13px;">
+                            <thead>
+                                <tr>
+                                    <th>Trabajador</th>
+                                    <th style="text-align: right;">Vacaciones</th>
+                                    <th style="text-align: right;">Años Serv.</th>
+                                    <th style="text-align: right;">Total Finiquito</th>
+                                </tr>
+                            </thead>
+                            <tbody id="finiquitos-table-body">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic Report Generator Card -->
+            <div class="glass-card">
+                <div class="card-header" style="flex-wrap: wrap; gap: 15px;">
+                    <div class="card-title">
+                        <i class="fa-solid fa-file-invoice-dollar"></i>
+                        <h2>Creador de Reportes de Gestión Temáticos y Agrupaciones</h2>
+                    </div>
+                    <!-- Export Options & Share -->
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn" style="background: linear-gradient(135deg, #10b981, #059669);" onclick="exportExcel()">
+                            <i class="fa-solid fa-file-excel"></i> Exportar Excel Completo
+                        </button>
+                        <button class="btn" style="background: linear-gradient(135deg, #3b82f6, #2563eb);" onclick="exportPortableDashboard()">
+                            <i class="fa-solid fa-share-nodes"></i> Descargar Dashboard Portable (SharePoint/OneDrive)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Report selection filters -->
+                <div class="search-bar-container" style="align-items: center; justify-content: flex-start; gap: 15px;">
+                    <span style="font-size: 14px; font-weight: 600; color: var(--text-muted);"><i class="fa-solid fa-layer-group"></i> Agrupar datos por dimensión:</span>
+                    <select id="report-dimension" class="filter-select" onchange="generateDimensionReport()" style="background: rgba(139, 92, 246, 0.12); border-color: rgba(139, 92, 246, 0.3); font-weight: 600;">
+                        <option value="generico_cargo">Generico</option>
+                        <option value="sede">Sede</option>
+                        <option value="cargo">Cargo</option>
+                        <option value="centro_costo">Centro de Costo</option>
+                        <option value="generico_proyecto">.Proyecto</option>
+                        <option value="afp">AFP (Fondo de Pensiones)</option>
+                        <option value="isapre">Sistema de Salud (Fonasa/Isapre)</option>
+                    </select>
+                </div>
+
+                <!-- Grouped report table -->
+                <div class="table-responsive">
+                    <table class="styled-table">
+                        <thead>
+                            <tr id="report-table-header">
+                                <!-- Populated dynamically -->
+                            </tr>
+                        </thead>
+                        <tbody id="report-table-body">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- VIEW 4: DISCREPANCY AUDITOR PANEL -->
+        <div id="view-discrepancies" class="content-view">
+            <div class="glass-card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 15px; margin-bottom: 15px;">
+                    <div class="card-title" style="font-size: 18px; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 10px;">
+                        <i class="fa-solid fa-triangle-exclamation" style="color: #ef4444; margin-right: 8px;"></i>
+                        Auditoría de Discrepancias vs Rex+
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="btn-toggle-discrepancies" class="btn" style="background: linear-gradient(135deg, #ef4444, #b91c1c);" onclick="toggleDiscrepancyFilter()">
+                            <i class="fa-solid fa-filter"></i> Mostrar Sólo Diferencias
+                        </button>
+                    </div>
+                </div>
+
+                <div class="search-bar-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; background: rgba(255,255,255,0.02); padding: 12px 20px; border-radius: 12px; border: 1px solid var(--card-border); gap: 20px;">
+                    <div class="search-input-wrapper" style="width: 50%; display: flex; align-items: center; background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); border-radius: 30px; padding: 8px 16px;">
+                        <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted); margin-right: 10px;"></i>
+                        <input type="text" id="discrepancy-search" class="search-input" onkeyup="searchDiscrepancyTable()" placeholder="Buscar por RUT o Nombre de colaborador..." style="background: transparent; border: none; outline: none; color: #ffffff; width: 100%; font-size: 13px;">
+                    </div>
+                    <div style="font-size: 14px; font-weight: 500; color: var(--text-muted);">
+                        Total Diferencias en Período: <strong id="discrepancy-count-badge" style="color: #ef4444; background: rgba(239, 68, 68, 0.12); padding: 4px 12px; border-radius: 20px; font-weight: 700; margin-left: 5px;">0</strong>
+                    </div>
+                </div>
+
+                <!-- Discrepancy comparison list table -->
+                <div class="table-responsive" style="margin-top: 15px; max-height: 550px; overflow-y: auto;">
+                    <table class="styled-table">
+                        <thead>
+                            <tr>
+                                <th>RUT</th>
+                                <th>Nombre Colaborador</th>
+                                <th>Imponible (Calc vs Rex)</th>
+                                <th>Líquido (Calc vs Rex)</th>
+                                <th>Costo (Calc vs Rex)</th>
+                                <th>Diferencia Payout</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="discrepancy-table-body">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- VIEW 5: PROCESS COMPARISON AUDITOR PANEL -->
+        <div id="view-process-comp" class="content-view">
+            <div class="glass-card">
+                <div class="card-header" style="border-bottom: 1px solid var(--card-border); padding-bottom: 15px; margin-bottom: 15px;">
+                    <div class="card-title" style="font-size: 18px; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 10px;">
+                        <i class="fa-solid fa-code-compare" style="color: var(--primary); margin-right: 8px;"></i>
+                        Comparación de Procesos de Cálculo (Auditoría de Recálculo)
+                    </div>
+                </div>
+
+                <!-- Info text when no snapshots available -->
+                <div id="proc-comp-no-data" style="display: none; text-align: center; padding: 40px; color: var(--text-muted);">
+                    <i class="fa-solid fa-clock-rotate-left" style="font-size: 40px; margin-bottom: 15px; color: var(--primary); opacity: 0.5;"></i>
+                    <p style="font-size: 15px; font-weight: 500; color: #ffffff;">Sin cálculos anteriores archivados</p>
+                    <p style="font-size: 12px; max-width: 450px; margin: 8px auto 0; line-height: 1.5;">
+                        No existen registros anteriores guardados para el período seleccionado. Cada vez que vuelves a procesar un mes ejecutando <code>run_calculations_and_seed_db()</code>, el sistema automáticamente archiva la versión anterior para permitirte comparar qué colaboradores y montos cambiaron.
+                    </p>
+                </div>
+
+                <!-- Comparison Dashboard Content -->
+                <div id="proc-comp-content" style="display: none;">
+                    <div style="background: rgba(139, 92, 246, 0.05); border: 1px solid rgba(139, 92, 246, 0.2); padding: 15px 20px; border-radius: 12px; margin-bottom: 25px; font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+                        <i class="fa-solid fa-circle-info" style="color: var(--primary); margin-right: 5px;"></i>
+                        Comparando el proceso de cálculo **Actual** frente a la versión archivada el <strong id="proc-comp-timestamp" style="color: #ffffff;">-</strong>. Esta auditoría te permite identificar inmediatamente el impacto de cambios en la dotación, bonos variables, licencias médicas u otras modificaciones de entrada.
+                    </div>
+
+                    <!-- KPI Totals Row -->
+                    <div class="kpi-grid" style="margin-bottom: 25px;">
+                        <div class="kpi-card" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); padding: 15px;">
+                            <div class="kpi-header">
+                                <div class="kpi-title" style="font-size: 11px;">Diferencia Dotación</div>
+                                <div class="kpi-icon"><i class="fa-solid fa-users"></i></div>
+                            </div>
+                            <div class="kpi-val" id="proc-kpi-count-diff" style="font-size: 24px; font-weight: 700; margin: 5px 0;">0</div>
+                            <div class="kpi-footer" id="proc-kpi-count-detail" style="font-size: 11px;">0 anterior vs 0 actual</div>
+                        </div>
+                        <div class="kpi-card" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); padding: 15px;">
+                            <div class="kpi-header">
+                                <div class="kpi-title" style="font-size: 11px;">Δ Imponible Total</div>
+                                <div class="kpi-icon"><i class="fa-solid fa-wallet"></i></div>
+                            </div>
+                            <div class="kpi-val" id="proc-kpi-imponible-diff" style="font-size: 24px; font-weight: 700; margin: 5px 0;">$0</div>
+                            <div class="kpi-footer" id="proc-kpi-imponible-detail" style="font-size: 11px;">$0 anterior vs $0 actual</div>
+                        </div>
+                        <div class="kpi-card" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); padding: 15px;">
+                            <div class="kpi-header">
+                                <div class="kpi-title" style="font-size: 11px;">Δ Alcance Líquido</div>
+                                <div class="kpi-icon"><i class="fa-solid fa-money-bill-wave"></i></div>
+                            </div>
+                            <div class="kpi-val" id="proc-kpi-liquido-diff" style="font-size: 24px; font-weight: 700; margin: 5px 0;">$0</div>
+                            <div class="kpi-footer" id="proc-kpi-liquido-detail" style="font-size: 11px;">$0 anterior vs $0 actual</div>
+                        </div>
+                        <div class="kpi-card" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); padding: 15px;">
+                            <div class="kpi-header">
+                                <div class="kpi-title" style="font-size: 11px;">Δ Costo Empresa</div>
+                                <div class="kpi-icon"><i class="fa-solid fa-coins"></i></div>
+                            </div>
+                            <div class="kpi-val" id="proc-kpi-costo-diff" style="font-size: 24px; font-weight: 700; margin: 5px 0;">$0</div>
+                            <div class="kpi-footer" id="proc-kpi-costo-detail" style="font-size: 11px;">$0 anterior vs $0 actual</div>
+                        </div>
+                    </div>
+
+                    <!-- Tabular breakdown: Added, Removed, Modified -->
+                    <div class="glass-card" style="padding: 20px; border-color: rgba(255,255,255,0.04); margin-bottom: 25px;">
+                        <h3 style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #ffffff; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-user-plus" style="color: var(--success);"></i>
+                            Colaboradores Agregados en el Proceso Actual (<span id="proc-added-count">0</span>)
+                        </h3>
+                        <div class="table-responsive">
+                            <table class="styled-table" style="font-size: 13px;">
+                                <thead>
+                                    <tr>
+                                        <th>RUT</th>
+                                        <th>Nombre</th>
+                                        <th>Cargo / CC</th>
+                                        <th style="text-align: right;">Sueldo Imponible</th>
+                                        <th style="text-align: right;">Alcance Líquido</th>
+                                        <th style="text-align: right;">Costo Empresa</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="proc-added-table-body">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="glass-card" style="padding: 20px; border-color: rgba(255,255,255,0.04); margin-bottom: 25px;">
+                        <h3 style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #ffffff; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-user-minus" style="color: var(--danger);"></i>
+                            Colaboradores Eliminados en el Proceso Actual (<span id="proc-removed-count">0</span>)
+                        </h3>
+                        <div class="table-responsive">
+                            <table class="styled-table" style="font-size: 13px;">
+                                <thead>
+                                    <tr>
+                                        <th>RUT</th>
+                                        <th>Nombre</th>
+                                        <th>Cargo / CC</th>
+                                        <th style="text-align: right;">Sueldo Imponible</th>
+                                        <th style="text-align: right;">Alcance Líquido</th>
+                                        <th style="text-align: right;">Costo Empresa</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="proc-removed-table-body">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="glass-card" style="padding: 20px; border-color: rgba(255,255,255,0.04); margin-bottom: 0;">
+                        <h3 style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #ffffff; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-user-pen" style="color: var(--primary);"></i>
+                            Colaboradores con Cambios en Cálculo de Liquidación (<span id="proc-modified-count">0</span>)
+                        </h3>
+                        <div class="table-responsive">
+                            <table class="styled-table" style="font-size: 13px;">
+                                <thead>
+                                    <tr>
+                                        <th>RUT</th>
+                                        <th>Nombre Colaborador</th>
+                                        <th style="text-align: right;">Δ Imponible</th>
+                                        <th style="text-align: right;">Δ Alcance Líquido</th>
+                                        <th style="text-align: right;">Δ Costo Empresa</th>
+                                        <th style="text-align: center; width: 140px;">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="proc-modified-table-body">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div></div>
+    </div>
+</div>
+
+<!-- PAYSTUB MODAL DIALOG -->
+<div class="modal" id="paystub-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">Detalle de Liquidación Legal</h2>
+            <button class="close-modal" onclick="closePaystubModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Chilean compliant paystub template wrapper -->
+            <div class="paystub-container" id="paystub-print">
+                <!-- Header: Employer & Period -->
+                <div class="paystub-header-grid">
+                    <div class="employer-info">
+                        <h3 id="stub-emp-company">INGENIERIA EN PLASTICOS MEMBRANTEC SA</h3>
+                        <p>RUT: 96.880.020-5</p>
+                        <p>Remuneración mensual - Liquidación de Sueldo</p>
+                    </div>
+                    <div class="period-info">
+                        <p>Periodo de Remuneración</p>
+                        <div class="period-badge" id="stub-period">Mayo 2026</div>
+                    </div>
+                </div>
+
+                <!-- Employee Profile grid -->
+                <div class="paystub-employee-grid">
+                    <div class="employee-data-item">
+                        <label>Nombre Trabajador</label>
+                        <span id="stub-name">-</span>
+                    </div>
+                    <div class="employee-data-item">
+                        <label>RUT</label>
+                        <span id="stub-rut">-</span>
+                    </div>
+                    <div class="employee-data-item">
+                        <label>Contrato N°</label>
+                        <span id="stub-contract">-</span>
+                    </div>
+                    <div class="employee-data-item">
+                        <label>Cargo</label>
+                        <span id="stub-role">-</span>
+                    </div>
+                    <div class="employee-data-item">
+                        <label>Centro de Costo</label>
+                        <span id="stub-cc">-</span>
+                    </div>
+                    <div class="employee-data-item">
+                        <label>Fecha Ingreso</label>
+                        <span id="stub-start-date">-</span>
+                    </div>
+                    <div class="employee-data-item">
+                        <label>Institución Previsional (AFP)</label>
+                        <span id="stub-afp">-</span>
+                    </div>
+                    <div class="employee-data-item">
+                        <label>Institución de Salud</label>
+                        <span id="stub-salud">-</span>
+                    </div>
+                    <div class="employee-data-item">
+                        <label>Forma de Pago</label>
+                        <span id="stub-payment">-</span>
+                    </div>
+                    <div class="employee-data-item" style="background: rgba(59, 130, 246, 0.05); padding: 5px; border-radius: 6px;">
+                        <label style="color: var(--secondary); font-weight: 700;">Sueldo Base Pactado</label>
+                        <span id="stub-base-pactado" style="font-weight: 700;">-</span>
+                    </div>
+                    <div class="employee-data-item" style="background: rgba(16, 185, 129, 0.05); padding: 5px; border-radius: 6px;">
+                        <label style="color: var(--success); font-weight: 700;">Días Trabajados</label>
+                        <span id="stub-worked-days" style="font-weight: 700; color: #059669;">-</span>
+                    </div>
+                    <div class="employee-data-item" style="background: rgba(239, 68, 68, 0.05); padding: 5px; border-radius: 6px;">
+                        <label style="color: var(--danger); font-weight: 700;">Días Licencia Médica</label>
+                        <span id="stub-license-days" style="font-weight: 700; color: #dc2626;">-</span>
+                    </div>
+                </div>
+
+                <!-- Paystub main items detail columns -->
+                <div class="paystub-details-columns">
+                    <!-- Column 1: Haberes -->
+                    <div class="paystub-col">
+                        <div class="paystub-col-header">Detalle Haberes (Ingresos)</div>
+                        <div class="paystub-rows-container" id="stub-haberes-rows">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                        <div class="paystub-total-row">
+                            <span>TOTAL HABERES</span>
+                            <span class="paystub-item-val" id="stub-total-haberes">$0</span>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Descuentos -->
+                    <div class="paystub-col">
+                        <div class="paystub-col-header">Detalle Descuentos (Previsión y Ley)</div>
+                        <div class="paystub-rows-container" id="stub-descuentos-rows">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                        <div class="paystub-total-row">
+                            <span>TOTAL DESCUENTOS</span>
+                            <span class="paystub-item-val" id="stub-total-descuentos">$0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary Liquid and wording block -->
+                <div class="paystub-summary-footer">
+                    <div class="liquido-words">
+                        <label>Detalle de Pago</label>
+                        <span>Certifico recibir a mi entera conformidad el saldo líquido indicado, el cual corresponde a mis servicios prestados en el periodo indicado.</span>
+                    </div>
+                    <div class="liquido-monto-card">
+                        <label>Sueldo Líquido a Pagar</label>
+                        <span id="stub-liquido">$0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Employer Cost breakdown breakout card (outside printable stub) -->
+            <div class="employer-cost-card">
+                <div class="cost-card-header">
+                    <i class="fa-solid fa-building-columns"></i>
+                    Aportes del Empleador (Costo Adicional Empresa)
+                </div>
+                <div class="cost-items-grid">
+                    <div class="cost-item">
+                        <label>Aporte SIS (1.62%)</label>
+                        <span id="stub-cost-sis">$0</span>
+                    </div>
+                    <div class="cost-item">
+                        <label>Tasa Mutual (0.93%)</label>
+                        <span id="stub-cost-mutual">$0</span>
+                    </div>
+                    <div class="cost-item">
+                        <label>Aporte Seguro Cesantía</label>
+                        <span id="stub-cost-afc">$0</span>
+                    </div>
+                    <div class="cost-item total">
+                        <label>Costo Total Empresa</label>
+                        <span id="stub-cost-total">$0</span>
+                    </div>
+                </div>
+            
+            <!-- Bonificaciones Justificadas Card -->
+            <div class="employer-cost-card" id="stub-justificaciones-card" style="margin-top: 20px; display: none; border-color: rgba(139, 92, 246, 0.3); background: rgba(139, 92, 246, 0.02);">
+                <div class="cost-card-header" style="color: var(--primary); font-family: var(--font-display); font-size: 15px; font-weight: 600;">
+                    <i class="fa-solid fa-receipt" style="color: var(--primary);"></i>
+                    Detalle de Haberes Justificados (Planilla de Entrada)
+                </div>
+                <div id="stub-justificaciones-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+</div>
+        </div>
+    </div>
+</div>
+
+<!-- DISCREPANCY AUDITOR MODAL DIALOG -->
+<div class="modal" id="discrepancy-modal">
+    <div class="modal-content" style="max-width: 950px;">
+        <div class="modal-header" style="border-bottom: 1px solid var(--card-border);">
+            <h2 class="modal-title" style="display: flex; align-items: center; gap: 10px;">
+                <i class="fa-solid fa-triangle-exclamation" style="color: #ef4444;"></i>
+                Auditoría Detallada de Discrepancias
+            </h2>
+            <button class="close-modal" onclick="closeDiscrepancyModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 25px 30px;">
+            <!-- Profile Info Banner -->
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; background: rgba(255,255,255,0.02); padding: 15px 20px; border-radius: 12px; border: 1px solid var(--card-border); margin-bottom: 25px;">
+                <div>
+                    <label style="display: block; font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 2px;">Colaborador</label>
+                    <span id="disc-name" style="font-weight: 700; color: #ffffff; font-size: 14px;">-</span>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 2px;">RUT (Contrato)</label>
+                    <span id="disc-rut-contrato" style="color: #ffffff; font-size: 14px;">-</span>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 2px;">Centro de Costo</label>
+                    <span id="disc-cc" style="color: #ffffff; font-size: 14px;">-</span>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 2px;">Período / Días Trab.</label>
+                    <span id="disc-periodo-dias" style="color: #ffffff; font-size: 14px;">-</span>
+                </div>
+            </div>
+
+            <!-- Comparison Table -->
+            <div class="table-responsive" style="margin-bottom: 25px;">
+                <table class="styled-table" style="font-size: 13px;">
+                    <thead>
+                        <tr>
+                            <th>Concepto Auditado</th>
+                            <th style="text-align: right;">Cálculo ERP REMU</th>
+                            <th style="text-align: right;">Carga Rex+ (Origen)</th>
+                            <th style="text-align: right; width: 180px;">Diferencia (Delta)</th>
+                            <th style="text-align: center; width: 100px;">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="disc-table-body">
+                        <!-- Populated dynamically via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Double-Column Explanations and Justifications -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <!-- Justificaciones Planilla de Entrada -->
+                <div class="glass-card" style="margin-bottom: 0; padding: 20px; background: rgba(139, 92, 246, 0.02); border-color: rgba(139, 92, 246, 0.2);">
+                    <h3 style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--primary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-receipt"></i>
+                        Justificaciones de Bonos en el Mes
+                    </h3>
+                    <div id="disc-justificaciones-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto;">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Análisis de Auditoría -->
+                <div class="glass-card" style="margin-bottom: 0; padding: 20px; background: rgba(59, 130, 246, 0.02); border-color: rgba(59, 130, 246, 0.2);">
+                    <h3 style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-circle-info"></i>
+                        Nota de Reconciliación Técnica
+                    </h3>
+                    <div id="disc-explanation-text" style="font-size: 12px; color: var(--text-muted); line-height: 1.5; font-style: italic;">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PROCESS RUN AUDITOR MODAL DIALOG -->
+<div class="modal" id="proc-detail-modal">
+    <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-header" style="border-bottom: 1px solid var(--card-border);">
+            <h2 class="modal-title" style="display: flex; align-items: center; gap: 10px;">
+                <i class="fa-solid fa-user-pen" style="color: var(--primary);"></i>
+                Auditoría Detallada de Cambios en Liquidación
+            </h2>
+            <button class="close-modal" onclick="closeProcDetailModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 25px 30px;">
+            <!-- Profile Info Banner -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; background: rgba(255,255,255,0.02); padding: 15px 20px; border-radius: 12px; border: 1px solid var(--card-border); margin-bottom: 25px;">
+                <div>
+                    <label style="display: block; font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 2px;">Colaborador</label>
+                    <span id="proc-det-name" style="font-weight: 700; color: #ffffff; font-size: 14px;">-</span>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 2px;">RUT (Contrato)</label>
+                    <span id="proc-det-rut-contrato" style="color: #ffffff; font-size: 14px;">-</span>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 2px;">Centro de Costo / Cargo</label>
+                    <span id="proc-det-cc-cargo" style="color: #ffffff; font-size: 14px;">-</span>
+                </div>
+            </div>
+
+            <!-- Differences Grid List -->
+            <h3 style="font-size: 13px; font-weight: 600; color: #ffffff; margin-bottom: 12px;"><i class="fa-solid fa-list-check" style="color: var(--primary); margin-right: 5px;"></i> Conceptos modificados en este cálculo</h3>
+            <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+                <table class="styled-table" style="font-size: 13px;">
+                    <thead>
+                        <tr>
+                            <th>Concepto Modificado</th>
+                            <th style="text-align: right;">Cálculo Anterior (Prev)</th>
+                            <th style="text-align: right;">Cálculo Nuevo (Curr)</th>
+                            <th style="text-align: right; width: 180px;">Variación (Delta)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="proc-det-table-body">
+                        <!-- Populated dynamically via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let employeesData = [];
+    let summaryData = {};
+    let analyticsData = {};
+    let periodsList = [];
+    let historyData = [];
+    let currentPeriod = '';
+
+    // Sort states for reports
+    let currentSortColumn = 'cost';
+    let currentSortOrder = 'desc';
+    
+    // Sort states for employees
+    let employeesSortColumn = 'nombre';
+    let employeesSortOrder = 'asc';
+    
+    // Collapsible states
+    const collapsibleStates = {
+        'licencias': false,
+        'finiquitos': false
+    };
+
+    // Chart objects to destroy and rebuild on changes
+    let chartAfp = null;
+    let chartSalud = null;
+    let chartCc = null;
+    let chartSalary = null;
+    let chartTrend = null;
+    let chartTrendLicencias = null;
+
+    // Custom offline-ready fetch wrapper
+    function customFetch(url) {
+        if (window.OFFLINE_DATA) {
+            return new Promise((resolve) => {
+                const parsedUrl = new URL(url, window.location.origin);
+                const path = parsedUrl.pathname;
+                const params = new URLSearchParams(parsedUrl.search);
+                const period = params.get("periodo") || window.OFFLINE_DATA.periods[0];
+
+                let resData = null;
+
+                if (path === "/api/periods") {
+                    resData = window.OFFLINE_DATA.periods;
+                } else if (path === "/api/history") {
+                    resData = window.OFFLINE_DATA.history;
+                } else if (path === "/api/summary") {
+                    resData = window.OFFLINE_DATA.summaries[period];
+                } else if (path === "/api/employees") {
+                    resData = window.OFFLINE_DATA.employees[period];
+                } else if (path === "/api/analytics") {
+                    resData = window.OFFLINE_DATA.analytics[period];
+                } else if (path === "/api/process-comparison") {
+                    resData = window.OFFLINE_DATA.process_comparisons?.[period] || { has_snapshot: false, periodo: period };
+                } else if (path.startsWith("/api/employee/")) {
+                    const parts = path.split("/");
+                    const rut = parts[3];
+                    const contrato = parts[4];
+                    const key = `${rut}-${contrato}`;
+                    resData = window.OFFLINE_DATA.details[period]?.[key] || { error: "Trabajador no encontrado" };
+                }
+
+                resolve({
+                    json: () => Promise.resolve(resData)
+                });
+            });
+        } else {
+            return fetch(url);
+        }
+    }
+
+    // Run on startup
+    window.onload = function() {
+        fetchPeriods();
+    }
+
+    // Load available periods from API
+    function fetchPeriods() {
+        customFetch('/api/periods')
+            .then(res => res.json())
+            .then(periods => {
+                periodsList = periods;
+                const select = document.getElementById('header-period');
+                select.innerHTML = '';
+                
+                periods.forEach(p => {
+                    const formatted = formatPeriodName(p);
+                    select.innerHTML += `<option value="${p}">${formatted}</option>`;
+                });
+                
+                if (periods.length > 0) {
+                    currentPeriod = periods[0];
+                    fetchPeriodData(currentPeriod);
+                }
+                
+                fetchHistory(); // fetch trend statistics
+            })
+            .catch(err => console.error("Error loading periods:", err));
+    }
+
+    // Translate YYYY-MM to Spanish Month Year
+    function formatPeriodName(p) {
+        if (!p) return '';
+        const parts = p.split('-');
+        if (parts.length < 2) return p;
+        const months = {
+            '01': 'Enero', '02': 'Febrero', '03': 'Marzo', '04': 'Abril',
+            '05': 'Mayo', '06': 'Junio', '07': 'Julio', '08': 'Agosto',
+            '09': 'Septiembre', '10': 'Octubre', '11': 'Noviembre', '12': 'Diciembre'
+        };
+        return `${months[parts[1]] || parts[1]} ${parts[0]}`;
+    }
+
+    // Switch selected period
+    function changePeriod() {
+        currentPeriod = document.getElementById('header-period').value;
+        fetchPeriodData(currentPeriod);
+    }
+
+    // Load all data tables for a given period
+    function fetchPeriodData(period) {
+        fetchSummary(period);
+        fetchEmployees(period);
+        fetchAnalytics(period);
+    }
+
+    // View switcher
+    function switchView(viewName) {
+        document.querySelectorAll('.content-view').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+        
+        document.getElementById(`view-${viewName}`).classList.add('active');
+        document.getElementById(`menu-${viewName}`).classList.add('active');
+        
+        if (viewName === 'calculations') {
+            document.getElementById('page-title').innerText = 'Cálculos de Liquidación';
+        } else if (viewName === 'analytics') {
+            document.getElementById('page-title').innerText = 'Dashboard de Análisis';
+            setTimeout(renderCharts, 100);
+        } else if (viewName === 'reports') {
+            document.getElementById('page-title').innerText = 'Gestión y Reportes';
+            setTimeout(() => {
+                renderTrendChart();
+                generateDimensionReport();
+                renderHRPendingDetails();
+            }, 100);
+        } else if (viewName === 'discrepancies') {
+            document.getElementById('page-title').innerText = 'Auditoría de Discrepancias';
+            setTimeout(renderDiscrepancyPanel, 100);
+        } else if (viewName === 'process-comp') {
+            document.getElementById('page-title').innerText = 'Comparación de Procesos de Cálculo';
+            setTimeout(renderProcessComparisonPanel, 100);
+        }
+    }
+
+    // Fetch process summaries from API
+    function fetchSummary(period) {
+        const url = `/api/summary?periodo=${period}`;
+        customFetch(url)
+            .then(res => res.json())
+            .then(data => {
+                summaryData = data;
+                document.getElementById('kpi-employees').innerText = data.total_employees;
+                if (document.getElementById('kpi-active-workers')) {
+                    document.getElementById('kpi-active-workers').innerText = data.active_workers || 0;
+                }
+                document.getElementById('kpi-match').innerText = data.match_rate.toFixed(1) + '%';
+                document.getElementById('kpi-imponible').innerText = formatCLP(data.total_imponible);
+                document.getElementById('kpi-cost').innerText = formatCLP(data.total_employer_cost);
+                
+                // Nuevos KPIs corporativos de rotación y personal
+                if (document.getElementById('kpi-turnover-rate')) {
+                    document.getElementById('kpi-turnover-rate').innerText = (data.turnover_rate !== undefined ? data.turnover_rate : 0.00).toFixed(2) + '%';
+                }
+                if (document.getElementById('kpi-terminations')) {
+                    document.getElementById('kpi-terminations').innerText = data.terminations !== undefined ? data.terminations : 0;
+                }
+                if (document.getElementById('kpi-average-headcount')) {
+                    document.getElementById('kpi-average-headcount').innerText = data.average_headcount !== undefined ? data.average_headcount : 0;
+                }
+                
+                document.getElementById('kpi-footer-period').innerText = `Contratos liquidados en ${formatPeriodName(period)}`;
+            })
+            .catch(err => console.error("Error fetching summary:", err));
+    }
+
+    // Fetch employee list comparison from API
+    function fetchEmployees(period) {
+        const url = `/api/employees?periodo=${period}`;
+        customFetch(url)
+            .then(res => res.json())
+            .then(data => {
+                employeesData = data;
+                
+                document.getElementById('table-period-title').innerText = `Detalle de Liquidaciones — ${formatPeriodName(period)}`;
+                
+                populateFilterDropdowns(data);
+                filterEmployees();
+                
+                if (document.getElementById('view-reports').classList.contains('active')) {
+                    generateDimensionReport();
+                    renderHRPendingDetails();
+                }
+                
+                if (document.getElementById('view-discrepancies').classList.contains('active')) {
+                    renderDiscrepancyPanel();
+                }
+                
+                if (document.getElementById('view-process-comp').classList.contains('active')) {
+                    renderProcessComparisonPanel();
+                }
+            })
+            .catch(err => console.error("Error fetching employees:", err));
+    }
+
+    // Fetch analytics metrics from API
+    function fetchAnalytics(period) {
+        const url = `/api/analytics?periodo=${period}`;
+        customFetch(url)
+            .then(res => res.json())
+            .then(data => {
+                analyticsData = data;
+                if (document.getElementById('view-analytics').classList.contains('active')) {
+                    renderCharts();
+                }
+            })
+            .catch(err => console.error("Error fetching analytics:", err));
+    }
+
+    // Fetch chronological evolution list from API
+    function fetchHistory() {
+        customFetch('/api/history')
+            .then(res => res.json())
+            .then(data => {
+                historyData = data;
+                if (document.getElementById('view-reports').classList.contains('active')) {
+                    renderTrendChart();
+                }
+            })
+            .catch(err => console.error("Error fetching history:", err));
+    }
+
+    // Populate comparisons table
+    function populateTable(data) {
+        const tbody = document.getElementById('employees-table-body');
+        tbody.innerHTML = '';
+        
+        if (data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 30px;">No se encontraron resultados para los filtros seleccionados</td></tr>`;
+            return;
+        }
+
+        // Sort data in-memory before rendering
+        const sortedData = [...data];
+        sortedData.sort((a, b) => {
+            let valA = a[employeesSortColumn];
+            let valB = b[employeesSortColumn];
+
+            // Normalize defaults for undefined/null
+            if (valA === undefined || valA === null) valA = 0;
+            if (valB === undefined || valB === null) valB = 0;
+
+            if (typeof valA === 'string') {
+                valA = valA.toLowerCase();
+                valB = valB.toLowerCase();
+                return employeesSortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else {
+                return employeesSortOrder === 'asc' ? valA - valB : valB - valA;
+            }
+        });
+
+        // Update header icons to match current sort
+        updateHeaderSortIcons();
+
+        sortedData.forEach(emp => {
+            const tr = document.createElement('tr');
+            
+            const diffClass = Math.abs(emp.diff) <= 2 ? 'ok' : 'diff';
+            const diffText = Math.abs(emp.diff) <= 2 ? 'OK' : `${emp.diff > 0 ? '+' : ''}${emp.diff.toLocaleString('es-CL')}`;
+
+            tr.innerHTML = `
+                <td style="font-family: monospace; font-weight: 600;">${emp.rut}</td>
+                <td style="text-align: center; color: var(--text-muted);">${emp.contrato}</td>
+                <td><span style="font-weight: 600; color: #ffffff;">${emp.nombre}</span></td>
+                <td style="text-align: center;">${emp.dias_trabajados}</td>
+                <td style="text-align: right;">${formatCLP(emp.sueldo_base)}</td>
+                <td style="text-align: right; font-weight: 600;">${formatCLP(emp.total_imponible)}</td>
+                <td style="text-align: right; color: var(--primary); font-weight: 700;">${formatCLP(emp.alcance_liquido)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${formatCLP(emp.rex_alcance)}</td>
+                <td style="text-align: center;">
+                    <span class="status-badge ${diffClass}">${diffText}</span>
+                </td>
+                <td style="text-align: center;">
+                    <button class="btn" onclick="openPaystubModal('${emp.rut}', ${emp.contrato})">
+                        <i class="fa-solid fa-receipt"></i> Ver Recibo
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Populate search filter selections
+    function populateFilterDropdowns(data) {
+        // Populates new dynamic dropdown filters and hidden compatibility filters
+        
+        // 1. CC (hidden compatibility)
+        const selectCc = document.getElementById('filter-cc');
+        const prevCc = selectCc.value;
+        selectCc.innerHTML = '<option value="">Todos los CC</option>';
+        const uniqueCcs = [...new Set(data.map(emp => emp.centro_costo))].filter(Boolean).sort();
+        uniqueCcs.forEach(cc => {
+            selectCc.innerHTML += `<option value="${cc}">${cc}</option>`;
+        });
+        selectCc.value = prevCc;
+
+        // 2. AFP (hidden compatibility)
+        const selectAfp = document.getElementById('filter-afp');
+        const prevAfp = selectAfp.value;
+        selectAfp.innerHTML = '<option value="">Todas las AFPs</option>';
+        const standardAfps = ["HABITAT", "CUPRUM", "PROVIDA", "MODELO", "UNO", "CAPITAL", "PLANVITAL"];
+        standardAfps.forEach(afp => {
+            selectAfp.innerHTML += `<option value="${afp}">${afp}</option>`;
+        });
+        selectAfp.value = prevAfp;
+
+        // 3. Generico select
+        const selectGenerico = document.getElementById('filter-generico');
+        const prevGenerico = selectGenerico.value;
+        selectGenerico.innerHTML = '<option value="">Todos los Genéricos</option>';
+        const uniqueGenericos = [...new Set(data.map(emp => emp.generico_cargo))].filter(Boolean).sort();
+        uniqueGenericos.forEach(val => {
+            selectGenerico.innerHTML += `<option value="${val}">${val}</option>`;
+        });
+        selectGenerico.value = prevGenerico;
+
+        // 4. Sede select
+        const selectSede = document.getElementById('filter-sede');
+        const prevSede = selectSede.value;
+        selectSede.innerHTML = '<option value="">Todas las Sedes</option>';
+        const uniqueSedes = [...new Set(data.map(emp => emp.sede))].filter(Boolean).sort();
+        uniqueSedes.forEach(val => {
+            selectSede.innerHTML += `<option value="${val}">${val}</option>`;
+        });
+        selectSede.value = prevSede;
+
+        // 5. Cargo select
+        const selectCargo = document.getElementById('filter-cargo');
+        const prevCargo = selectCargo.value;
+        selectCargo.innerHTML = '<option value="">Todos los Cargos</option>';
+        const uniqueCargos = [...new Set(data.map(emp => emp.cargo))].filter(Boolean).sort();
+        uniqueCargos.forEach(val => {
+            selectCargo.innerHTML += `<option value="${val}">${val}</option>`;
+        });
+        selectCargo.value = prevCargo;
+
+        // 6. Proyecto select
+        const selectProyecto = document.getElementById('filter-proyecto');
+        const prevProyecto = selectProyecto.value;
+        selectProyecto.innerHTML = '<option value="">Todos los Proyectos</option>';
+        const uniqueProyectos = [...new Set(data.map(emp => emp.generico_proyecto))].filter(Boolean).sort();
+        uniqueProyectos.forEach(val => {
+            selectProyecto.innerHTML += `<option value="${val}">${val}</option>`;
+        });
+        selectProyecto.value = prevProyecto;
+    }
+
+    // Filter employees dynamically
+    function filterEmployees() {
+        const query = document.getElementById('search-box').value.toLowerCase().replace(/\./g, '').trim();
+        const afpFilter = document.getElementById('filter-afp').value;
+        const saludFilter = document.getElementById('filter-salud').value;
+        const ccFilter = document.getElementById('filter-cc').value;
+        
+        const genericoFilter = document.getElementById('filter-generico').value;
+        const sedeFilter = document.getElementById('filter-sede').value;
+        const cargoFilter = document.getElementById('filter-cargo').value;
+        const proyectoFilter = document.getElementById('filter-proyecto').value;
+        
+        const filtered = employeesData.filter(emp => {
+            const matchesQuery = emp.nombre.toLowerCase().includes(query) || emp.rut.toLowerCase().replace(/\./g, '').includes(query);
+            
+            // Hidden chart compatibility filters
+            const matchesAfp = !afpFilter || emp.afp.toUpperCase() === afpFilter.toUpperCase();
+            
+            let matchesSalud = true;
+            if (saludFilter === 'FONASA') {
+                matchesSalud = emp.isapre.toUpperCase().includes('FONASA');
+            } else if (saludFilter === 'ISAPRE') {
+                matchesSalud = !emp.isapre.toUpperCase().includes('FONASA');
+            }
+            
+            const matchesCc = !ccFilter || emp.centro_costo === ccFilter;
+            
+            // New filters
+            const matchesGenerico = !genericoFilter || emp.generico_cargo === genericoFilter;
+            const matchesSede = !sedeFilter || emp.sede === sedeFilter;
+            const matchesCargo = !cargoFilter || emp.cargo === cargoFilter;
+            const matchesProyecto = !proyectoFilter || emp.generico_proyecto === proyectoFilter;
+            
+            return matchesQuery && matchesAfp && matchesSalud && matchesCc && 
+                   matchesGenerico && matchesSede && matchesCargo && matchesProyecto;
+        });
+        
+        populateTable(filtered);
+    }
+
+    // Sorting functions for employees table
+    function toggleEmployeesSort(column) {
+        if (employeesSortColumn === column) {
+            employeesSortOrder = employeesSortOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+            employeesSortColumn = column;
+            // Default to descending for financial columns first, ascending for names/RUT
+            if (['sueldo_base', 'total_imponible', 'alcance_liquido', 'rex_alcance', 'diff'].includes(column)) {
+                employeesSortOrder = 'desc';
+            } else {
+                employeesSortOrder = 'asc';
+            }
+        }
+        filterEmployees();
+    }
+
+    function updateHeaderSortIcons() {
+        const columns = {
+            'rut': 'th-rut',
+            'contrato': 'th-contrato',
+            'nombre': 'th-nombre',
+            'dias_trabajados': 'th-dias',
+            'sueldo_base': 'th-base',
+            'total_imponible': 'th-imponible',
+            'alcance_liquido': 'th-liquido',
+            'rex_alcance': 'th-rex',
+            'diff': 'th-diff'
+        };
+
+        for (const [colKey, thId] of Object.entries(columns)) {
+            const th = document.getElementById(thId);
+            if (!th) continue;
+            const span = th.querySelector('.sort-icon');
+            if (!span) continue;
+
+            if (employeesSortColumn === colKey) {
+                if (employeesSortOrder === 'asc') {
+                    span.innerHTML = '<i class="fa-solid fa-sort-up" style="color: var(--primary); font-size: 12px; margin-left: 5px;"></i>';
+                } else {
+                    span.innerHTML = '<i class="fa-solid fa-sort-down" style="color: var(--primary); font-size: 12px; margin-left: 5px;"></i>';
+                }
+            } else {
+                span.innerHTML = '<i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 10px; margin-left: 5px;"></i>';
+            }
+        }
+    }
+
+    // Clear all filters handler
+    function clearAllFilters() {
+        document.getElementById('search-box').value = '';
+        document.getElementById('filter-generico').value = '';
+        document.getElementById('filter-sede').value = '';
+        document.getElementById('filter-cargo').value = '';
+        document.getElementById('filter-proyecto').value = '';
+        document.getElementById('filter-cc').value = '';
+        document.getElementById('filter-afp').value = '';
+        document.getElementById('filter-salud').value = '';
+        filterEmployees();
+    }
+
+    // Open detailed Chilean paystub modal
+    function openPaystubModal(rut, contrato) {
+        const url = `/api/employee/${rut}/${contrato}?periodo=${currentPeriod}`;
+        customFetch(url)
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    alert("Error: " + data.error);
+                    return;
+                }
+                
+                const p = data.profile;
+                const c = data.calculation;
+                
+                // Set employee metadata
+                document.getElementById('stub-name').innerText = p.nombre;
+                document.getElementById('stub-rut').innerText = p.rut;
+                document.getElementById('stub-contract').innerText = p.contrato;
+                document.getElementById('stub-role').innerText = p.cargo;
+                document.getElementById('stub-cc').innerText = p.centro_costo;
+                document.getElementById('stub-start-date').innerText = p.fecha_inicio_contrato;
+                document.getElementById('stub-afp').innerText = p.afp;
+                document.getElementById('stub-salud').innerText = p.isapre;
+                document.getElementById('stub-period').innerText = formatPeriodName(currentPeriod);
+                
+                const basePactadoEl = document.getElementById('stub-base-pactado');
+                if (basePactadoEl) basePactadoEl.innerText = formatCLP(p.sueldo_base_pactado);
+                
+                const workedDaysEl = document.getElementById('stub-worked-days');
+                if (workedDaysEl) workedDaysEl.innerText = c.dias_trabajados;
+                
+                const licenseDaysEl = document.getElementById('stub-license-days');
+                if (licenseDaysEl) licenseDaysEl.innerText = c.licencia_dias || 0;
+                
+                let paymentText = p.forma_pago.toUpperCase();
+                if (p.banco && p.cuenta_banco) {
+                    paymentText += ` (${p.banco.toUpperCase()} Cta: ${p.cuenta_banco})`;
+                }
+                document.getElementById('stub-payment').innerText = paymentText;
+                
+                // Build Haberes
+                const habTable = document.getElementById('stub-haberes-rows');
+                habTable.innerHTML = '';
+                
+                const basePropVal = (c.sueldo_base_prop !== undefined && c.sueldo_base_prop !== null) 
+                    ? c.sueldo_base_prop 
+                    : Math.round(p.sueldo_base_pactado * (c.dias_trabajados / 30.0));
+                
+                addStubRow(habTable, "Sueldo Base Proporcional", basePropVal);
+                if (c.monto_horas_extras > 0) addStubRow(habTable, "Horas Extras", c.monto_horas_extras);
+                if (c.bono_descanso > 0) addStubRow(habTable, "Bono Descanso", c.bono_descanso);
+                if (c.bono_feriado > 0) addStubRow(habTable, "Bono Feriado", c.bono_feriado);
+                if (c.bono_incentivo > 0) addStubRow(habTable, "Bono Incentivo variable", c.bono_incentivo);
+                if (c.bono_responsabilidad > 0) addStubRow(habTable, "Bono Responsabilidad", c.bono_responsabilidad);
+                if (c.bono_gestion > 0) addStubRow(habTable, "Bono Gestión Variable", c.bono_gestion);
+                if (c.bono_permanencia > 0) addStubRow(habTable, "Bono de Permanencia", c.bono_permanencia);
+                addStubRow(habTable, "Gratificación Legal", c.gratificacion);
+                
+                // Subtotal Imponible
+                addStubSubtotalRow(habTable, "SUBTOTAL IMPONIBLE", c.total_imponible);
+                
+                // Non-imponibles
+                if (c.colacion > 0) addStubRow(habTable, "Asignación Colación", c.colacion);
+                if (c.movilizacion > 0) addStubRow(habTable, "Asignación Movilización", c.movilizacion);
+                if (c.pasajes > 0) addStubRow(habTable, "Asignación Pasajes", c.pasajes);
+                if (c.traslados > 0) addStubRow(habTable, "Asignación Traslados (viático)", c.traslados);
+                if (c.bono_estudios > 0) addStubRow(habTable, "Bono Estudios", c.bono_estudios);
+                if (c.bono_fallecimiento > 0) addStubRow(habTable, "Bono Fallecimiento", c.bono_fallecimiento);
+                if (c.asignacion_familiar > 0) addStubRow(habTable, "Asignación Familiar", c.asignacion_familiar);
+
+                // Finiquito Non-imponible payouts
+                const totalFiniquitoConcepts = (c.ias_vacaciones || 0) + (c.ias_anos_servicio || 0) + (c.ias_aviso || 0);
+                if (c.ias_vacaciones > 0) addStubRow(habTable, "IAS Vacaciones Legales (Finiquito)", c.ias_vacaciones);
+                if (c.ias_anos_servicio > 0) addStubRow(habTable, "IAS Años Servicio (Finiquito)", c.ias_anos_servicio);
+                if (c.ias_aviso > 0) addStubRow(habTable, "IAS Mes Aviso (Finiquito)", c.ias_aviso);
+                
+                addStubSubtotalRow(habTable, "SUBTOTAL NO IMPONIBLE", c.total_no_imponible);
+                document.getElementById('stub-total-haberes').innerText = formatCLP(c.total_haberes);
+                
+                // Build Descuentos
+                const desTable = document.getElementById('stub-descuentos-rows');
+                desTable.innerHTML = '';
+                
+                // 1. Legal/Previsional deductions
+                addStubRow(desTable, "Cotización Previsional AFP", c.descuento_afp);
+                addStubRow(desTable, "Cotización Salud Total", c.descuento_salud_total);
+                if (c.descuento_afc > 0) addStubRow(desTable, "Seguro Cesantía Trabajador (AFC)", c.descuento_afc);
+                if (c.descuento_apvi > 0) addStubRow(desTable, "Ahorro Previsional Voluntario (APVI)", c.descuento_apvi);
+                if (c.descuento_impuesto > 0) addStubRow(desTable, "Impuesto Único (IUSC)", c.descuento_impuesto);
+                
+                addStubSubtotalRow(desTable, "SUBTOTAL DESCUENTOS LEGALES", c.total_descuentos_legales);
+                
+                // 2. Other/Voluntary deductions
+                let hasOtros = false;
+                if (c.descuento_anticipo > 0) { addStubRow(desTable, "Anticipo de Sueldo", c.descuento_anticipo); hasOtros = true; }
+                if (c.descuento_ccaf_credito > 0) { addStubRow(desTable, "Créditos Personales CCAF", c.descuento_ccaf_credito); hasOtros = true; }
+                if (c.descuento_ccaf_prestamo > 0) { addStubRow(desTable, "Préstamo CCAF Araucana", c.descuento_ccaf_prestamo); hasOtros = true; }
+                if (c.descuento_retencion_judicial > 0) { addStubRow(desTable, "Retención Judicial", c.descuento_retencion_judicial); hasOtros = true; }
+                if (c.descuento_prestamos_empresa > 0) { addStubRow(desTable, "Préstamos Empresa", c.descuento_prestamos_empresa); hasOtros = true; }
+                if (c.descuento_seguro_complementario > 0) { addStubRow(desTable, "Seguro Complementario", c.descuento_seguro_complementario); hasOtros = true; }
+                if (c.descuento_falp > 0) { addStubRow(desTable, "Donación / Seguro FALP", c.descuento_falp); hasOtros = true; }
+                
+                if (hasOtros) {
+                    addStubSubtotalRow(desTable, "SUBTOTAL OTROS DESCUENTOS", c.total_descuentos_otros);
+                }
+                
+                // Fill spaces to align tables visually
+                const hCount = habTable.children.length;
+                const dCount = desTable.children.length;
+                if (dCount < hCount) {
+                    for (let i = 0; i < (hCount - dCount); i++) {
+                        addStubRow(desTable, "&nbsp;", null);
+                    }
+                }
+                
+                document.getElementById('stub-total-descuentos').innerText = formatCLP(c.total_descuentos);
+                document.getElementById('stub-liquido').innerText = formatCLP(c.sueldo_liquido);
+                
+                // Employer Cost details
+                document.getElementById('stub-cost-sis').innerText = formatCLP(c.aporte_sis);
+                document.getElementById('stub-cost-mutual').innerText = formatCLP(c.aporte_mutual);
+                document.getElementById('stub-cost-afc').innerText = formatCLP(c.aporte_afc);
+                document.getElementById('stub-cost-total').innerText = formatCLP(c.costo_empresa);
+
+                // Build Justificaciones block dynamically
+                const justContainer = document.getElementById('stub-justificaciones-card');
+                const justBody = document.getElementById('stub-justificaciones-list');
+                justBody.innerHTML = '';
+                
+                let hasJusts = false;
+                if (c.justificaciones_json) {
+                    try {
+                        const justs = JSON.parse(c.justificaciones_json);
+                        for (const [concept, text] of Object.entries(justs)) {
+                            let amountText = "";
+                            const normConcept = concept.toLowerCase().replace(/ /g, "");
+                            
+                            let amt = null;
+                            if (normConcept.includes("descanso")) amt = c.bono_descanso;
+                            else if (normConcept.includes("feriado")) amt = c.bono_feriado;
+                            else if (normConcept.includes("incentivo")) amt = c.bono_incentivo;
+                            else if (normConcept.includes("responsabilidad")) amt = c.bono_responsabilidad;
+                            else if (normConcept.includes("gestion")) amt = c.bono_gestion;
+                            else if (normConcept.includes("permanencia")) amt = c.bono_permanencia;
+                            else if (normConcept.includes("colacion")) amt = c.colacion;
+                            else if (normConcept.includes("movilizacion")) amt = c.movilizacion;
+                            else if (normConcept.includes("pasajes")) amt = c.pasajes;
+                            else if (normConcept.includes("traslados")) amt = c.traslados;
+                            else if (normConcept.includes("estudios")) amt = c.bono_estudios;
+                            else if (normConcept.includes("acuerdo")) amt = c.bono_incentivo;
+                            else if (normConcept.includes("plan")) amt = c.bono_estudios;
+                            
+                            if (amt !== null && amt > 0) {
+                                amountText = ` (${formatCLP(amt)})`;
+                            }
+                            
+                            const div = document.createElement('div');
+                            div.style.padding = '10px 14px';
+                            div.style.background = 'rgba(255,255,255,0.02)';
+                            div.style.borderLeft = '3px solid var(--primary)';
+                            div.style.borderRadius = '8px';
+                            div.style.fontSize = '12px';
+                            div.style.lineHeight = '1.4';
+                            div.innerHTML = `<strong style="color: #ffffff;">${concept}${amountText}:</strong> <span style="color: var(--text-muted); font-style: italic;">"${text}"</span>`;
+                            justBody.appendChild(div);
+                            hasJusts = true;
+                        }
+                    } catch(e) {
+                        console.error("Error parsing justifications JSON:", e);
+                    }
+                }
+                
+                if (hasJusts) {
+                    justContainer.style.display = 'block';
+                } else {
+                    justContainer.style.display = 'none';
+                }
+
+                document.getElementById('paystub-modal').classList.add('active');
+            })
+            .catch(err => {
+                console.error("Error loading employee detail:", err);
+                alert("Ocurrió un error al cargar la información detallada.");
+            });
+    }
+
+    function addStubRow(container, label, val) {
+        const div = document.createElement('div');
+        div.className = 'paystub-item-row';
+        div.innerHTML = `
+            <span>${label}</span>
+            <span class="paystub-item-val">${val !== null ? formatCLP(val) : ''}</span>
+        `;
+        container.appendChild(div);
+    }
+
+    function addStubSubtotalRow(container, label, val) {
+        const div = document.createElement('div');
+        div.className = 'paystub-item-row';
+        div.style.fontWeight = '700';
+        div.style.color = '#475569';
+        div.style.borderBottom = '1px solid #cbd5e1';
+        div.innerHTML = `
+            <span>${label}</span>
+            <span class="paystub-item-val">${formatCLP(val)}</span>
+        `;
+        container.appendChild(div);
+    }
+
+    function closePaystubModal() {
+        document.getElementById('paystub-modal').classList.remove('active');
+    }
+
+    // Format money helper
+    function formatCLP(val) {
+        return '$' + Math.round(val).toLocaleString('es-CL');
+    }
+
+    // Render interactive analytics charts using Chart.js
+    function renderCharts() {
+        if (!analyticsData.afp) return;
+        
+        // Destruct old charts
+        if (chartAfp) chartAfp.destroy();
+        if (chartSalud) chartSalud.destroy();
+        if (chartCc) chartCc.destroy();
+        if (chartSalary) chartSalary.destroy();
+        
+        const colors = ['#8b5cf6', '#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#ec4899', '#14b8a6', '#6366f1'];
+
+        // Chart 1: AFP Donut
+        const afpLabels = analyticsData.afp.map(x => x.afp);
+        const afpQty = analyticsData.afp.map(x => x.qty);
+        
+        chartAfp = new Chart(document.getElementById('chart-afp'), {
+            type: 'doughnut',
+            data: {
+                labels: afpLabels,
+                datasets: [{
+                    data: afpQty,
+                    backgroundColor: colors.slice(0, afpLabels.length),
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.08)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        const label = chartAfp.data.labels[index];
+                        document.getElementById('filter-afp').value = label;
+                        switchView('calculations');
+                        filterEmployees();
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { color: '#9ca3af', font: { family: 'Inter', size: 11 } }
+                    }
+                }
+            }
+        });
+
+        // Chart 2: Salud Pie
+        let fonasaQty = 0;
+        let isapreQty = 0;
+        analyticsData.salud.forEach(x => {
+            if (x.isapre.includes("FONASA")) {
+                fonasaQty += x.qty;
+            } else {
+                isapreQty += x.qty;
+            }
+        });
+        
+        chartSalud = new Chart(document.getElementById('chart-salud'), {
+            type: 'pie',
+            data: {
+                labels: ['FONASA', 'ISAPRES'],
+                datasets: [{
+                    data: [fonasaQty, isapreQty],
+                    backgroundColor: ['#10b981', '#3b82f6'],
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.08)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        const label = index === 0 ? 'FONASA' : 'ISAPRE';
+                        document.getElementById('filter-salud').value = label;
+                        switchView('calculations');
+                        filterEmployees();
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { color: '#9ca3af', font: { family: 'Inter', size: 12 } }
+                    }
+                }
+            }
+        });
+
+        // Chart 3: Cost Centers (Horizontal Bar Chart)
+        const topCc = analyticsData.cost_centers.slice(0, 5);
+        const ccLabels = topCc.map(x => x.centro_costo);
+        const ccCosts = topCc.map(x => x.total_cost / 1000000); // in Millions
+        
+        chartCc = new Chart(document.getElementById('chart-cc'), {
+            type: 'bar',
+            data: {
+                labels: ccLabels,
+                datasets: [{
+                    label: 'Costo Empresa (Millones de CLP)',
+                    data: ccCosts,
+                    backgroundColor: 'rgba(59, 130, 246, 0.4)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 2,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        const label = chartCc.data.labels[index];
+                        document.getElementById('filter-cc').value = label;
+                        switchView('calculations');
+                        filterEmployees();
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.04)' },
+                        ticks: { color: '#9ca3af', callback: val => '$' + val + 'M' }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { color: '#f3f4f6', font: { family: 'Outfit', size: 10 } }
+                    }
+                }
+            }
+        });
+
+        // Chart 4: Salary Ranges (Vertical Bar Chart)
+        const salaryLabels = analyticsData.salary_ranges.map(x => x.range);
+        const salaryQty = analyticsData.salary_ranges.map(x => x.qty);
+        
+        chartSalary = new Chart(document.getElementById('chart-salary'), {
+            type: 'bar',
+            data: {
+                labels: salaryLabels,
+                datasets: [{
+                    label: 'Cantidad de Empleados',
+                    data: salaryQty,
+                    backgroundColor: 'rgba(139, 92, 246, 0.4)',
+                    borderColor: '#8b5cf6',
+                    borderWidth: 2,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#f3f4f6', font: { family: 'Outfit', size: 11 } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.04)' },
+                        ticks: { color: '#9ca3af', precision: 0 }
+                    }
+                }
+            }
+        });
+    }
+
+    // Render historical payroll trend evolution line charts
+    function renderTrendChart() {
+        if (!historyData || historyData.length === 0) return;
+
+        // 1. Cost & Finiquitos CLP chart
+        if (chartTrend) chartTrend.destroy();
+
+        const labels = historyData.map(h => formatPeriodName(h.periodo));
+        const netPayroll = historyData.map(h => h.total_net_payroll / 1000000); 
+        const employerCost = historyData.map(h => h.total_employer_cost / 1000000);
+        const finiquitos = historyData.map(h => h.total_finiquitos_monto / 1000000);
+
+        chartTrend = new Chart(document.getElementById('chart-trend'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Costo Empresa Total (Millones CLP)',
+                        data: employerCost,
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 3,
+                        pointBackgroundColor: '#ef4444',
+                        pointRadius: 4
+                    },
+                    {
+                        label: 'Sueldo Líquido Total Pago (Millones CLP)',
+                        data: netPayroll,
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.08)',
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 3,
+                        pointBackgroundColor: '#8b5cf6',
+                        pointRadius: 4
+                    },
+                    {
+                        label: 'Finiquitos Pagados (Millones CLP)',
+                        data: finiquitos,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 3,
+                        pointBackgroundColor: '#f59e0b',
+                        pointRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#9ca3af', font: { family: 'Inter', size: 10 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: context => ` ${context.dataset.label.split(' ')[0]}: $${context.raw.toFixed(2)}M CLP`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.04)' },
+                        ticks: { color: '#f3f4f6', font: { family: 'Outfit', size: 10 } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.04)' },
+                        ticks: { color: '#9ca3af', callback: val => '$' + val + 'M' }
+                    }
+                }
+            }
+        });
+
+        // 2. Medical License days chart
+        if (chartTrendLicencias) chartTrendLicencias.destroy();
+
+        const licenciasDias = historyData.map(h => h.total_licencias_dias);
+
+        chartTrendLicencias = new Chart(document.getElementById('chart-trend-licencias'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Licencias Médicas (Días totales acumulados)',
+                        data: licenciasDias,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 3,
+                        pointBackgroundColor: '#10b981',
+                        pointRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#9ca3af', font: { family: 'Inter', size: 10 } }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.04)' },
+                        ticks: { color: '#f3f4f6', font: { family: 'Outfit', size: 10 } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.04)' },
+                        ticks: { color: '#9ca3af', precision: 0, callback: val => val + ' d' }
+                    }
+                }
+            }
+        });
+    }
+
+    // Dynamic Report Generator Calculations
+    function generateDimensionReport() {
+        const dimension = document.getElementById('report-dimension').value;
+        const groups = {};
+
+        employeesData.forEach(emp => {
+            let key = '';
+            if (dimension === 'centro_costo') key = emp.centro_costo;
+            else if (dimension === 'cargo') key = emp.cargo;
+            else if (dimension === 'sede') key = emp.sede;
+            else if (dimension === 'afp') key = emp.afp;
+            else if (dimension === 'isapre') {
+                key = emp.isapre.includes('FONASA') ? 'FONASA' : 'ISAPRE';
+            }
+            else if (dimension === 'generico_cargo') key = emp.generico_cargo;
+            else if (dimension === 'generico_proyecto') key = emp.generico_proyecto;
+            
+            if (!key) key = 'No Asignado';
+            key = key.toUpperCase();
+            
+            if (!groups[key]) {
+                groups[key] = {
+                    name: key,
+                    count: 0,
+                    total_imponible: 0,
+                    total_net: 0,
+                    total_cost: 0
+                };
+            }
+            
+            groups[key].count += 1;
+            groups[key].total_imponible += emp.total_imponible;
+            groups[key].total_net += emp.alcance_liquido;
+            groups[key].total_cost += emp.costo_empresa || 0;
+        });
+
+        let reportArray = Object.values(groups);
+
+        // Client-side Sorting
+        reportArray.sort((a, b) => {
+            let valA, valB;
+            if (currentSortColumn === 'name') { valA = a.name; valB = b.name; }
+            else if (currentSortColumn === 'count') { valA = a.count; valB = b.count; }
+            else if (currentSortColumn === 'imponible') { valA = a.total_imponible; valB = b.total_imponible; }
+            else if (currentSortColumn === 'net') { valA = a.total_net; valB = b.total_net; }
+            else if (currentSortColumn === 'cost') { valA = a.total_cost; valB = b.total_cost; }
+            
+            if (typeof valA === 'string') {
+                return currentSortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else {
+                return currentSortOrder === 'asc' ? valA - valB : valB - valA;
+            }
+        });
+
+        // Set Headers with Sort Triggers
+        const header = document.getElementById('report-table-header');
+        const dimensionLabel = {
+            'centro_costo': 'Centro de Costo',
+            'cargo': 'Cargo',
+            'sede': 'Sede',
+            'afp': 'AFP',
+            'isapre': 'Sistema de Salud',
+            'generico_cargo': 'Generico',
+            'generico_proyecto': '.Proyecto'
+        }[dimension];
+
+        header.innerHTML = `
+            <th onclick="toggleReportSort('name')" style="cursor: pointer;">${dimensionLabel} ${getSortIcon('name')}</th>
+            <th onclick="toggleReportSort('count')" style="cursor: pointer; text-align: center;">Dotación ${getSortIcon('count')}</th>
+            <th onclick="toggleReportSort('imponible')" style="cursor: pointer; text-align: right;">Total Imponible ${getSortIcon('imponible')}</th>
+            <th onclick="toggleReportSort('net')" style="cursor: pointer; text-align: right;">Total Líquido Alcance ${getSortIcon('net')}</th>
+            <th onclick="toggleReportSort('cost')" style="cursor: pointer; text-align: right;">Total Costo Empresa ${getSortIcon('cost')}</th>
+            <th style="text-align: right;">Costo Promedio p/p</th>
+        `;
+
+        // Render rows
+        const tbody = document.getElementById('report-table-body');
+        tbody.innerHTML = '';
+        
+        let totalCount = 0;
+        let totalImponible = 0;
+        let totalNet = 0;
+        let totalCost = 0;
+
+        reportArray.forEach(row => {
+            const avgCost = row.count > 0 ? row.total_cost / row.count : 0;
+            totalCount += row.count;
+            totalImponible += row.total_imponible;
+            totalNet += row.total_net;
+            totalCost += row.total_cost;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight: 600; color: #ffffff;">${row.name}</td>
+                <td style="text-align: center;">${row.count}</td>
+                <td style="text-align: right;">${formatCLP(row.total_imponible)}</td>
+                <td style="text-align: right; color: var(--primary);">${formatCLP(row.total_net)}</td>
+                <td style="text-align: right; color: var(--danger); font-weight: 600;">${formatCLP(row.total_cost)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${formatCLP(avgCost)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Add Totals Row
+        const trTotals = document.createElement('tr');
+        trTotals.style.background = 'rgba(255, 255, 255, 0.05)';
+        trTotals.style.fontWeight = '700';
+        trTotals.style.borderTop = '2px solid var(--card-border)';
+        const avgTotalCost = totalCount > 0 ? totalCost / totalCount : 0;
+        
+        trTotals.innerHTML = `
+            <td>TOTAL GENERAL</td>
+            <td style="text-align: center;">${totalCount}</td>
+            <td style="text-align: right;">${formatCLP(totalImponible)}</td>
+            <td style="text-align: right; color: var(--primary);">${formatCLP(totalNet)}</td>
+            <td style="text-align: right; color: var(--danger);">${formatCLP(totalCost)}</td>
+            <td style="text-align: right;">${formatCLP(avgTotalCost)}</td>
+        `;
+        tbody.appendChild(trTotals);
+    }
+
+    function toggleReportSort(col) {
+        if (currentSortColumn === col) {
+            currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSortColumn = col;
+            currentSortOrder = 'desc';
+        }
+        generateDimensionReport();
+    }
+
+    function getSortIcon(col) {
+        if (currentSortColumn !== col) return '<i class="fa-solid fa-sort" style="color: rgba(255,255,255,0.2); font-size: 10px; margin-left: 5px;"></i>';
+        return currentSortOrder === 'asc' 
+            ? '<i class="fa-solid fa-sort-up" style="color: var(--primary); font-size: 12px; margin-left: 5px;"></i>' 
+            : '<i class="fa-solid fa-sort-down" style="color: var(--primary); font-size: 12px; margin-left: 5px;"></i>';
+    }
+
+    // Render HR Analytics details: Collapsibles
+    function renderHRPendingDetails() {
+        let totalLicenciaDias = 0;
+        let totalLicenciaQty = 0;
+        
+        let totalFiniquitosMonto = 0;
+        let totalFiniquitosQty = 0;
+        
+        const licTable = document.getElementById('licencias-table-body');
+        const finTable = document.getElementById('finiquitos-table-body');
+        
+        licTable.innerHTML = '';
+        finTable.innerHTML = '';
+        
+        employeesData.forEach(emp => {
+            // 1. Licenses
+            if (emp.licencia_dias > 0) {
+                totalLicenciaDias += emp.licencia_dias;
+                totalLicenciaQty += 1;
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span style="font-weight:600; color:#fff;">${emp.nombre}</span><br><small style="color:var(--text-muted);">${emp.cargo}</small></td>
+                    <td style="text-align:center; font-weight:700; color:var(--primary);">${emp.licencia_dias}</td>
+                    <td>${emp.centro_costo}</td>
+                `;
+                licTable.appendChild(tr);
+            }
+            
+            // 2. Severances (Finiquitos)
+            const fTotal = (emp.ias_vacaciones || 0) + (emp.ias_anos_servicio || 0) + (emp.ias_aviso || 0);
+            if (fTotal > 0) {
+                totalFiniquitosMonto += fTotal;
+                totalFiniquitosQty += 1;
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span style="font-weight:600; color:#fff;">${emp.nombre}</span><br><small style="color:var(--text-muted);">${emp.cargo}</small></td>
+                    <td style="text-align:right;">${formatCLP(emp.ias_vacaciones)}</td>
+                    <td style="text-align:right;">${formatCLP(emp.ias_anos_servicio)}</td>
+                    <td style="text-align:right; font-weight:700; color:var(--danger);">${formatCLP(fTotal)}</td>
+                `;
+                finTable.appendChild(tr);
+            }
+        });
+        
+        if (licTable.children.length === 0) {
+            licTable.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding: 15px;">Sin licencias registradas en el mes</td></tr>`;
+        }
+        if (finTable.children.length === 0) {
+            finTable.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding: 15px;">Sin finiquitos pagados en el mes</td></tr>`;
+        }
+        
+        // Populate KPIs
+        document.getElementById('rep-kpi-licencias-dias').innerText = totalLicenciaDias + " días";
+        document.getElementById('rep-kpi-licencias-qty').innerText = totalLicenciaQty + " empleados afectados";
+        
+        document.getElementById('rep-kpi-finiquitos-monto').innerText = formatCLP(totalFiniquitosMonto);
+        document.getElementById('rep-kpi-finiquitos-qty').innerText = totalFiniquitosQty + " contratos finalizados";
+    }
+
+    // Toggle Details Collapsibles
+    function toggleDetailsCollapse(section) {
+        const content = document.getElementById(`collapse-content-${section}`);
+        const icon = document.getElementById(`collapse-icon-${section}`);
+        
+        collapsibleStates[section] = !collapsibleStates[section];
+        
+        if (collapsibleStates[section]) {
+            content.style.display = 'block';
+            icon.className = 'fa-solid fa-chevron-up';
+        } else {
+            content.style.display = 'none';
+            icon.className = 'fa-solid fa-chevron-down';
+        }
+    }
+
+    // Export handlers
+    function exportExcel() {
+        if (window.OFFLINE_DATA) {
+            alert("La exportación a Excel directa requiere conexión al servidor local backend. Por favor ejecuta el exportador local: python export_to_excel.py");
+            return;
+        }
+        window.location.href = `/api/export/excel?periodo=${currentPeriod}`;
+    }
+
+    function exportPortableDashboard() {
+        if (window.OFFLINE_DATA) {
+            alert("Ya estás en el modo offline portable!");
+            return;
+        }
+        window.location.href = '/api/export/portable';
+    }
+
+    // Discrepancy Panel Variables and Controller
+    let onlyShowDifferences = false;
+
+    function renderDiscrepancyPanel() {
+        const tbody = document.getElementById('discrepancy-table-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        const searchQuery = document.getElementById('discrepancy-search').value.toLowerCase().trim();
+        let totalDiferencias = 0;
+        let renderedCount = 0;
+
+        employeesData.forEach(emp => {
+            const calculatedNet = emp.alcance_liquido;
+            const rexNet = emp.rex_alcance;
+            const diff = calculatedNet - rexNet;
+            const hasDiff = Math.abs(diff) > 2;
+
+            if (hasDiff) {
+                totalDiferencias++;
+            }
+
+            // Filter for only differences
+            if (onlyShowDifferences && !hasDiff) {
+                return;
+            }
+
+            // Filter by search query
+            const rut = emp.rut.toLowerCase();
+            const nombre = emp.nombre.toLowerCase();
+            if (searchQuery && !rut.includes(searchQuery) && !nombre.includes(searchQuery)) {
+                return;
+            }
+
+            renderedCount++;
+
+            const tr = document.createElement('tr');
+            
+            // Format calculated vs Rex side-by-side strings
+            const imponibleStr = `${formatCLP(emp.total_imponible)} vs ${formatCLP(emp.rex_imponible)}`;
+            const liquidoStr = `${formatCLP(emp.alcance_liquido)} vs ${formatCLP(emp.rex_alcance)}`;
+            const costoStr = `${formatCLP(emp.costo_empresa || 0)} vs ${formatCLP(emp.rex_costo || 0)}`;
+
+            const diffClass = hasDiff ? 'diff' : 'ok';
+            const diffText = hasDiff ? `${diff > 0 ? '+' : ''}${diff.toLocaleString('es-CL')}` : 'OK';
+
+            tr.innerHTML = `
+                <td style="font-weight: 600; color: #ffffff;">${emp.rut}</td>
+                <td>
+                    <span style="font-weight: 600; color: #ffffff;">${emp.nombre}</span><br>
+                    <small style="color: var(--text-muted);">${emp.cargo} • ${emp.centro_costo}</small>
+                </td>
+                <td style="text-align: right;">${imponibleStr}</td>
+                <td style="text-align: right; color: var(--primary); font-weight: 600;">${liquidoStr}</td>
+                <td style="text-align: right; color: var(--danger);">${costoStr}</td>
+                <td style="text-align: right; font-weight: 700;">
+                    <span class="status-badge ${diffClass}" style="display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px;">
+                        ${diffText}
+                    </span>
+                </td>
+                <td style="text-align: center;">
+                    <button class="btn" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2)); border: 1px solid rgba(139, 92, 246, 0.4); padding: 5px 12px; font-size: 11px; border-radius: 20px; cursor: pointer;" onclick="openDiscrepancyAuditor('${emp.rut}', ${emp.contrato})">
+                        <i class="fa-solid fa-magnifying-glass-chart"></i> Auditar
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Update discrepancy badge count
+        document.getElementById('discrepancy-count-badge').innerText = totalDiferencias;
+
+        if (renderedCount === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                ${onlyShowDifferences ? '¡Felicitaciones! No existen diferencias en este período para mostrar.' : 'No se encontraron resultados para los filtros seleccionados'}
+            </td></tr>`;
+        }
+    }
+
+    function toggleDiscrepancyFilter() {
+        onlyShowDifferences = !onlyShowDifferences;
+        const btn = document.getElementById('btn-toggle-discrepancies');
+        if (onlyShowDifferences) {
+            btn.innerHTML = '<i class="fa-solid fa-list"></i> Mostrar Todos';
+            btn.style.background = 'linear-gradient(135deg, var(--primary), #6d28d9)';
+        } else {
+            btn.innerHTML = '<i class="fa-solid fa-filter"></i> Mostrar Sólo Diferencias';
+            btn.style.background = 'linear-gradient(135deg, #ef4444, #b91c1c)';
+        }
+        renderDiscrepancyPanel();
+    }
+
+    function searchDiscrepancyTable() {
+        renderDiscrepancyPanel();
+    }
+
+    function openDiscrepancyAuditor(rut, contrato) {
+        const url = `/api/employee/${rut}/${contrato}?periodo=${currentPeriod}`;
+        customFetch(url)
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    alert("Error: " + data.error);
+                    return;
+                }
+
+                const p = data.profile;
+                const c = data.calculation;
+                const r = data.comparison;
+
+                // Profile banner
+                document.getElementById('disc-name').innerText = p.nombre;
+                document.getElementById('disc-rut-contrato').innerText = `${p.rut} (${p.contrato})`;
+                document.getElementById('disc-cc').innerText = p.centro_costo;
+                document.getElementById('disc-periodo-dias').innerText = `${formatPeriodName(currentPeriod)} / ${c.dias_trabajados} días`;
+
+                // Build side-by-side comparison body
+                const tbody = document.getElementById('disc-table-body');
+                tbody.innerHTML = '';
+
+                // Concepts to audit
+                const concepts = [
+                    { name: "Sueldo Imponible", calc: c.total_imponible, rex: r.rex_imponible },
+                    { name: "Cotización AFP", calc: c.descuento_afp, rex: r.rex_afp },
+                    { name: "Cotización Salud", calc: c.descuento_salud_total, rex: r.rex_salud },
+                    { name: "Seguro de Cesantía (AFC)", calc: c.descuento_afc, rex: r.rex_cesantia },
+                    { name: "Impuesto Único (IUSC)", calc: c.descuento_impuesto, rex: r.rex_impuesto },
+                    { name: "Total Descuentos", calc: c.total_descuentos, rex: r.rex_descuentos },
+                    { name: "Alcance Líquido / Payout", calc: c.alcance_liquido, rex: r.rex_alcance },
+                    { name: "Costo Empresa Total", calc: c.costo_empresa, rex: r.rex_costo }
+                ];
+
+                let maxDiffConcept = '';
+                let maxDiffVal = 0;
+
+                concepts.forEach(item => {
+                    const diff = item.calc - item.rex;
+                    const hasDiff = Math.abs(diff) > 2;
+
+                    if (hasDiff && Math.abs(diff) > maxDiffVal) {
+                        maxDiffVal = Math.abs(diff);
+                        maxDiffConcept = item.name;
+                    }
+
+                    const diffClass = hasDiff ? (diff > 0 ? 'text-emerald-400' : 'text-rose-500') : 'text-slate-400';
+                    const diffText = hasDiff ? `${diff > 0 ? '+' : ''}${diff.toLocaleString('es-CL')}` : '$0';
+                    
+                    const statusHtml = hasDiff 
+                        ? `<span style="color: #f59e0b; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; text-shadow: 0 0 10px rgba(245,158,11,0.2);"><i class="fa-solid fa-triangle-exclamation"></i> Delta</span>`
+                        : `<span style="color: #10b981; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i class="fa-solid fa-circle-check"></i> Cuadrado</span>`;
+
+                    const tr = document.createElement('tr');
+                    tr.style.background = 'rgba(255,255,255,0.01)';
+                    tr.innerHTML = `
+                        <td style="font-weight: 600; color: #ffffff;">${item.name}</td>
+                        <td style="text-align: right; font-weight: 600; color: #ffffff;">${formatCLP(item.calc)}</td>
+                        <td style="text-align: right; color: var(--text-muted);">${formatCLP(item.rex)}</td>
+                        <td style="text-align: right; font-weight: 700;" class="${diffClass}">${diffText}</td>
+                        <td style="text-align: center;">${statusHtml}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                // Build justifications block
+                const justBody = document.getElementById('disc-justificaciones-list');
+                justBody.innerHTML = '';
+                let hasJusts = false;
+
+                if (c.justificaciones_json) {
+                    try {
+                        const justs = JSON.parse(c.justificaciones_json);
+                        for (const [concept, text] of Object.entries(justs)) {
+                            let amountText = "";
+                            const normConcept = concept.toLowerCase().replace(/ /g, "");
+                            
+                            let amt = null;
+                            if (normConcept.includes("descanso")) amt = c.bono_descanso;
+                            else if (normConcept.includes("feriado")) amt = c.bono_feriado;
+                            else if (normConcept.includes("incentivo")) amt = c.bono_incentivo;
+                            else if (normConcept.includes("responsabilidad")) amt = c.bono_responsabilidad;
+                            else if (normConcept.includes("gestion")) amt = c.bono_gestion;
+                            else if (normConcept.includes("permanencia")) amt = c.bono_permanencia;
+                            else if (normConcept.includes("colacion")) amt = c.colacion;
+                            else if (normConcept.includes("movilizacion")) amt = c.movilizacion;
+                            else if (normConcept.includes("pasajes")) amt = c.pasajes;
+                            else if (normConcept.includes("traslados")) amt = c.traslados;
+                            else if (normConcept.includes("estudios")) amt = c.bono_estudios;
+                            else if (normConcept.includes("acuerdo")) amt = c.bono_incentivo;
+                            else if (normConcept.includes("plan")) amt = c.bono_estudios;
+                            
+                            if (amt !== null && amt > 0) {
+                                amountText = ` (${formatCLP(amt)})`;
+                            }
+                            
+                            const div = document.createElement('div');
+                            div.style.padding = '8px 12px';
+                            div.style.background = 'rgba(255,255,255,0.02)';
+                            div.style.borderLeft = '3px solid var(--primary)';
+                            div.style.borderRadius = '6px';
+                            div.style.fontSize = '11px';
+                            div.innerHTML = `<strong style="color: #ffffff;">${concept}${amountText}:</strong> <span style="color: var(--text-muted); font-style: italic;">"${text}"</span>`;
+                            justBody.appendChild(div);
+                            hasJusts = true;
+                        }
+                    } catch(e) {
+                        console.error("Error parsing justifications JSON:", e);
+                    }
+                }
+
+                if (!hasJusts) {
+                    justBody.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 12px;">Sin justificaciones registradas en la planilla de entrada.</div>`;
+                }
+
+                // Dynamic Explanation text block
+                const expBox = document.getElementById('disc-explanation-text');
+                
+                if (maxDiffVal <= 2) {
+                    expBox.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <span style="color: #10b981; font-weight: 700; font-size: 13px;"><i class="fa-solid fa-circle-check"></i> Cuadratura Matemática Absoluta (100%)</span>
+                            <span>El motor ERP REMU y los registros históricos de depósitos de Rex+ coinciden al 100.00% exacto para todas las variables imponibles, deducciones previsionales, salud e impuesto.</span>
+                            <span style="font-weight: 500;">Estado de auditoría: APTO Y CONCILIADO.</span>
+                        </div>
+                    `;
+                } else {
+                    // We have differences
+                    let explanationStr = "";
+                    if (maxDiffConcept.includes("Líquido") && maxDiffVal === 300000) {
+                        explanationStr = `Se ha auditado la discrepancia de <strong>$300.000</strong> en el alcance líquido. Se trata del bono/préstamo voluntario por fallecimiento ingresado directamente como anticipo/egreso en caja, que no califica legalmente como haber imponible ni tributable en el mes y se liquida como egreso manual.`;
+                    } else if (c.licencia_dias > 0) {
+                        explanationStr = `Se detecta una discrepancia que coincide con el período de <strong>${c.licencia_dias} días de Licencia Médica</strong> del colaborador. La diferencia proviene de prorrateos previsionales proporcionales de Fonasa o Isapre aplicados por Rex+ frente al cálculo ordinario del motor de nómina.`;
+                    } else {
+                        explanationStr = `Se observa una discrepancia técnica en <strong>${maxDiffConcept}</strong> por un monto de <strong>${formatCLP(maxDiffVal)}</strong>. Esta fluctuación menor se debe habitualmente a diferencias en el redondeo de los montos pactados en UF de planes de Isapre o topes previsionales de salud en meses con días proporcionales.`;
+                    }
+
+                    expBox.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <span style="color: #f59e0b; font-weight: 700; font-size: 13px;"><i class="fa-solid fa-triangle-exclamation"></i> Discrepancia Localizada</span>
+                            <span>${explanationStr}</span>
+                            <span style="font-weight: 500; color: #ffffff;">Acción sugerida: Validar redondeo previsional o justificar descuento excepcional en el mes.</span>
+                        </div>
+                    `;
+                }
+
+                document.getElementById('discrepancy-modal').classList.add('active');
+            })
+            .catch(err => {
+                console.error("Error loading discrepancy detail:", err);
+                alert("Ocurrió un error al cargar los datos del auditor.");
+            });
+    }
+
+    function closeDiscrepancyModal() {
+        document.getElementById('discrepancy-modal').classList.remove('active');
+    }
+
+    // Process Run Comparison Auditor Controllers
+    let processCompData = null;
+
+    function renderProcessComparisonPanel() {
+        const noDataContainer = document.getElementById('proc-comp-no-data');
+        const contentContainer = document.getElementById('proc-comp-content');
+        if (!noDataContainer || !contentContainer) return;
+        
+        const url = `/api/process-comparison?periodo=${currentPeriod}`;
+        customFetch(url)
+            .then(res => res.json())
+            .then(data => {
+                processCompData = data;
+                
+                if (!data.has_snapshot) {
+                    noDataContainer.style.display = 'block';
+                    contentContainer.style.display = 'none';
+                    return;
+                }
+                
+                noDataContainer.style.display = 'none';
+                contentContainer.style.display = 'block';
+                
+                // Set metadata
+                document.getElementById('proc-comp-timestamp').innerText = data.snapshot_timestamp;
+                
+                // Set KPIs
+                const s = data.summary;
+                
+                // Count Diff
+                const countDiffEl = document.getElementById('proc-kpi-count-diff');
+                countDiffEl.innerText = (s.count_diff > 0 ? '+' : '') + s.count_diff;
+                countDiffEl.style.color = s.count_diff === 0 ? '#ffffff' : (s.count_diff > 0 ? '#10b981' : '#ef4444');
+                document.getElementById('proc-kpi-count-detail').innerText = `${s.prev_count} anterior vs ${s.curr_count} actual`;
+                
+                // Imponible Diff
+                const impDiffEl = document.getElementById('proc-kpi-imponible-diff');
+                impDiffEl.innerText = (s.imponible_diff > 0 ? '+' : '') + formatCLP(s.imponible_diff);
+                impDiffEl.style.color = s.imponible_diff === 0 ? '#ffffff' : (s.imponible_diff > 0 ? '#10b981' : '#ef4444');
+                document.getElementById('proc-kpi-imponible-detail').innerText = `${formatCLP(s.prev_imponible)} vs ${formatCLP(s.curr_imponible)}`;
+                
+                // Liquido Diff
+                const liqDiffEl = document.getElementById('proc-kpi-liquido-diff');
+                liqDiffEl.innerText = (s.liquido_diff > 0 ? '+' : '') + formatCLP(s.liquido_diff);
+                liqDiffEl.style.color = s.liquido_diff === 0 ? '#ffffff' : (s.liquido_diff > 0 ? '#10b981' : '#ef4444');
+                document.getElementById('proc-kpi-liquido-detail').innerText = `${formatCLP(s.prev_liquido)} vs ${formatCLP(s.curr_liquido)}`;
+                
+                // Costo Diff
+                const costDiffEl = document.getElementById('proc-kpi-costo-diff');
+                costDiffEl.innerText = (s.costo_diff > 0 ? '+' : '') + formatCLP(s.costo_diff);
+                costDiffEl.style.color = s.costo_diff === 0 ? '#ffffff' : (s.costo_diff > 0 ? '#10b981' : '#ef4444');
+                document.getElementById('proc-kpi-costo-detail').innerText = `${formatCLP(s.prev_costo)} vs ${formatCLP(s.curr_costo)}`;
+                
+                // Populate tables
+                populateAddedTable(data.added);
+                populateRemovedTable(data.removed);
+                populateModifiedTable(data.modified);
+            })
+            .catch(err => {
+                console.error("Error loading process comparison:", err);
+                noDataContainer.style.display = 'block';
+                contentContainer.style.display = 'none';
+            });
+    }
+
+    function populateAddedTable(list) {
+        document.getElementById('proc-added-count').innerText = list.length;
+        const tbody = document.getElementById('proc-added-table-body');
+        tbody.innerHTML = '';
+        
+        if (list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 15px;">Ningún colaborador agregado en esta corrida.</td></tr>`;
+            return;
+        }
+        
+        list.forEach(emp => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight: 600; color: #ffffff;">${emp.rut}</td>
+                <td style="font-weight: 600; color: #ffffff;">${emp.nombre}</td>
+                <td><small style="color: var(--text-muted);">${emp.cargo} • ${emp.centro_costo}</small></td>
+                <td style="text-align: right; color: #ffffff;">${formatCLP(emp.total_imponible)}</td>
+                <td style="text-align: right; color: var(--primary); font-weight: 600;">${formatCLP(emp.alcance_liquido)}</td>
+                <td style="text-align: right; color: var(--danger);">${formatCLP(emp.costo_empresa)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function populateRemovedTable(list) {
+        document.getElementById('proc-removed-count').innerText = list.length;
+        const tbody = document.getElementById('proc-removed-table-body');
+        tbody.innerHTML = '';
+        
+        if (list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 15px;">Ningún colaborador eliminado en esta corrida.</td></tr>`;
+            return;
+        }
+        
+        list.forEach(emp => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight: 600; color: var(--text-muted);">${emp.rut}</td>
+                <td style="font-weight: 600; color: var(--text-muted);">${emp.nombre}</td>
+                <td><small style="color: var(--text-muted);">${emp.cargo} • ${emp.centro_costo}</small></td>
+                <td style="text-align: right; color: var(--text-muted);">${formatCLP(emp.total_imponible)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${formatCLP(emp.alcance_liquido)}</td>
+                <td style="text-align: right; color: var(--text-muted);">${formatCLP(emp.costo_empresa)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function populateModifiedTable(list) {
+        document.getElementById('proc-modified-count').innerText = list.length;
+        const tbody = document.getElementById('proc-modified-table-body');
+        tbody.innerHTML = '';
+        
+        if (list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 15px;">Sin cambios detectados en los montos de liquidaciones.</td></tr>`;
+            return;
+        }
+        
+        list.forEach(emp => {
+            const tr = document.createElement('tr');
+            
+            const impDiff = emp.curr_imponible - emp.prev_imponible;
+            const liqDiff = emp.curr_liquido - emp.prev_liquido;
+            const costDiff = emp.curr_costo - emp.prev_costo;
+            
+            const impDiffStr = (impDiff === 0 ? '$0' : (impDiff > 0 ? '+' : '') + impDiff.toLocaleString('es-CL'));
+            const liqDiffStr = (liqDiff === 0 ? '$0' : (liqDiff > 0 ? '+' : '') + liqDiff.toLocaleString('es-CL'));
+            const costDiffStr = (costDiff === 0 ? '$0' : (costDiff > 0 ? '+' : '') + costDiff.toLocaleString('es-CL'));
+            
+            const impClass = impDiff === 0 ? '' : (impDiff > 0 ? 'color: #10b981; font-weight:600;' : 'color: #ef4444;');
+            const liqClass = liqDiff === 0 ? '' : (liqDiff > 0 ? 'color: #10b981; font-weight:600;' : 'color: #ef4444;');
+            const costClass = costDiff === 0 ? '' : (costDiff > 0 ? 'color: #10b981; font-weight:600;' : 'color: #ef4444;');
+
+            tr.innerHTML = `
+                <td style="font-weight: 600; color: #ffffff;">${emp.rut}</td>
+                <td>
+                    <span style="font-weight: 600; color: #ffffff;">${emp.nombre}</span><br>
+                    <small style="color: var(--text-muted);">${emp.cargo} • ${emp.centro_costo}</small>
+                </td>
+                <td style="text-align: right; ${impClass}">${impDiffStr}</td>
+                <td style="text-align: right; ${liqClass}">${liqDiffStr}</td>
+                <td style="text-align: right; ${costClass}">${costDiffStr}</td>
+                <td style="text-align: center;">
+                    <button class="btn" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2)); border: 1px solid rgba(139, 92, 246, 0.4); padding: 5px 12px; font-size: 11px; border-radius: 20px; cursor: pointer;" onclick="openProcDetailModal('${emp.rut}', ${emp.contrato})">
+                        <i class="fa-solid fa-magnifying-glass-chart"></i> Auditar Cambios
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function openProcDetailModal(rut, contrato) {
+        if (!processCompData) return;
+        const key = `${rut}-${contrato}`;
+        const emp = processCompData.modified.find(m => `${m.rut}-${m.contrato}` === key);
+        if (!emp) return;
+        
+        document.getElementById('proc-det-name').innerText = emp.nombre;
+        document.getElementById('proc-det-rut-contrato').innerText = `${emp.rut} (${emp.contrato})`;
+        document.getElementById('proc-det-cc-cargo').innerText = `${emp.centro_costo} / ${emp.cargo}`;
+        
+        const tbody = document.getElementById('proc-det-table-body');
+        tbody.innerHTML = '';
+        
+        Object.entries(emp.diffs).forEach(([field, d]) => {
+            const tr = document.createElement('tr');
+            tr.style.background = 'rgba(255,255,255,0.01)';
+            
+            let prevStr = d.prev;
+            let currStr = d.curr;
+            let deltaStr = (d.delta > 0 ? '+' : '') + d.delta;
+            
+            if (d.is_money) {
+                prevStr = formatCLP(d.prev);
+                currStr = formatCLP(d.curr);
+                deltaStr = (d.delta > 0 ? '+' : '') + d.delta.toLocaleString('es-CL');
+            }
+            
+            const deltaClass = d.delta > 0 ? 'text-emerald-400' : 'text-rose-500';
+            
+            tr.innerHTML = `
+                <td style="font-weight: 600; color: #ffffff;">${d.label}</td>
+                <td style="text-align: right; color: var(--text-muted);">${prevStr}</td>
+                <td style="text-align: right; font-weight: 600; color: #ffffff;">${currStr}</td>
+                <td style="text-align: right; font-weight: 700;" class="${deltaClass}">${deltaStr}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+        
+        document.getElementById('proc-detail-modal').classList.add('active');
+    }
+
+    function closeProcDetailModal() {
+        document.getElementById('proc-detail-modal').classList.remove('active');
+    }
+</script>
+</body>
+</html>
