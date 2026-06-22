@@ -28,7 +28,7 @@ body {
 }
 
 .logo span {
-    background: linear-gradient(to right, #ffffff, #ffb399) !important;
+    background: linear-gradient(135deg, var(--brand-teal), var(--brand-orange)) !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
 }

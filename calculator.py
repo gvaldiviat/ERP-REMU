@@ -1,4 +1,280 @@
 import math
+import datetime
+import calendar
+import numpy as np
+
+def calculate_inclusive_work_days(start_date, end_date, holidays=None):
+    if holidays is None:
+        holidays = []
+    if isinstance(start_date, str):
+        start_date = datetime.datetime.strptime(start_date[:10], "%Y-%m-%d").date()
+    if isinstance(end_date, str):
+        end_date = datetime.datetime.strptime(end_date[:10], "%Y-%m-%d").date()
+    
+    next_day = end_date + datetime.timedelta(days=1)
+    
+    holidays_str = []
+    for h in holidays:
+        if isinstance(h, datetime.date):
+            holidays_str.append(h.strftime("%Y-%m-%d"))
+        else:
+            holidays_str.append(str(h)[:10])
+            
+    busdays = int(np.busday_count(start_date, next_day, weekmask='1111110', holidays=holidays_str))
+    return busdays
+
+
+def datedif_excel(start_date, end_date):
+    years = end_date.year - start_date.year
+    if (end_date.month, end_date.day) < (start_date.month, start_date.day):
+        years -= 1
+        
+    months = end_date.month - start_date.month
+    if end_date.day < start_date.day:
+        months -= 1
+    if months < 0:
+        months += 12
+        
+    y = start_date.year + years
+    m = start_date.month + months
+    if m > 12:
+        y += 1
+        m -= 12
+    max_days = calendar.monthrange(y, m)[1]
+    d = min(start_date.day, max_days)
+    ref_date = datetime.date(y, m, d)
+    
+    days = (end_date - ref_date).days
+    if days < 0:
+        days = 0
+    return years, months, days
+
+def calculate_finiquito_pure(employee, params, last_liq, inputs, causal, fecha_termino_str, conn=None):
+    rut = employee.get("rut")
+    contrato = employee.get("contrato")
+    nombre = employee.get("nombre")
+    fecha_inicio_str = employee.get("fecha_inicio_contrato")
+    tipo_contrato = employee.get("tipo_contrato")
+
+    try:
+        if not fecha_inicio_str:
+            raise ValueError()
+        fecha_inicio = datetime.datetime.strptime(fecha_inicio_str[:10], "%Y-%m-%d").date()
+    except Exception:
+        return {"error": f"Trabajador {nombre} no tiene una fecha de inicio de contrato válida."}
+        
+    try:
+        if not fecha_termino_str:
+            raise ValueError()
+        fecha_termino = datetime.datetime.strptime(fecha_termino_str[:10], "%Y-%m-%d").date()
+    except Exception:
+        return {"error": "Fecha de término de contrato inválida."}
+        
+    total_days = (fecha_termino - fecha_inicio).days + 1
+    cy, cm, cd = datedif_excel(fecha_inicio, fecha_termino)
+
+    # Determine vacation start date from raw_json
+    vac_start_str = None
+    raw_json_str = employee.get("raw_json")
+    if raw_json_str:
+        try:
+            import json
+            raw = json.loads(raw_json_str)
+            vac_start_str = raw.get("Fecha inicio vacaciones")
+            if vac_start_str:
+                vac_start_str = vac_start_str[:10]
+        except:
+            pass
+            
+    vac_start_date = None
+    if vac_start_str:
+        try:
+            vac_start_date = datetime.datetime.strptime(vac_start_str, "%Y-%m-%d").date()
+        except:
+            pass
+            
+    vac_start = vac_start_date or fecha_inicio
+    vac_total_days = (fecha_termino - vac_start).days + 1
+    
+    # 2. Vacation calculation
+    vac_devengadas_calc = 0.0 if vac_total_days < 31 else vac_total_days * 0.04166667
+    
+    dias_vacaciones_override = inputs.get("dias_vacaciones_override")
+    if dias_vacaciones_override is not None and str(dias_vacaciones_override).strip() != "":
+        try:
+            dias_pendientes = float(dias_vacaciones_override)
+        except ValueError:
+            dias_pendientes = 0.0
+        v_dev = dias_pendientes
+        v_prog = 0.0
+        v_inh = 0.0
+        v_tom = 0.0
+    else:
+        v_dev = vac_devengadas_calc
+        v_prog = float(inputs.get("vac_progresivo", 0.0) or 0.0)
+        v_inh = float(inputs.get("vac_inhabiles", 0.0) or 0.0)
+        v_tom = float(inputs.get("vac_tomadas", 0.0) or 0.0)
+        dias_pendientes = v_dev + v_prog + v_inh - v_tom
+        
+    # 3. Parameters
+    uf_val = params.get("uf", 40610.69)
+    imm_val = params.get("imm", 539000.00)
+    limit_clp = round(90.0 * uf_val)
+    
+    # Determine the divisor based on the business days of the termination month
+    period_str = f"{fecha_termino.year:04d}-{fecha_termino.month:02d}"
+    if period_str >= "2026-06":
+        start_of_month = datetime.date(fecha_termino.year, fecha_termino.month, 1)
+        end_of_month = datetime.date(fecha_termino.year, fecha_termino.month, calendar.monthrange(fecha_termino.year, fecha_termino.month)[1])
+        holidays_list = []
+        try:
+            from projection_engine import DEFAULT_HOLIDAYS_2026
+            holidays_list = DEFAULT_HOLIDAYS_2026
+        except Exception:
+            pass
+        divisor = float(calculate_inclusive_work_days(start_of_month, end_of_month, holidays_list))
+        if divisor <= 0:
+            divisor = 30.0
+    else:
+        divisor = 30.0
+    
+    # 4. Salary bases and overrides
+    sueldo_base_override = inputs.get("sueldo_base_override")
+    sueldo_base = int(sueldo_base_override) if sueldo_base_override is not None and str(sueldo_base_override).strip() != "" else (employee.get("sueldo_base") or 0)
+    
+    last_liq_col = 0
+    last_liq_mov = 0
+    if last_liq:
+        dias_liq = last_liq.get("dias_trabajados") or 30
+        if 0 < dias_liq < 30:
+            last_liq_col = round((last_liq.get("colacion") or 0) * divisor / dias_liq)
+            last_liq_mov = round((last_liq.get("movilizacion") or 0) * divisor / dias_liq)
+        else:
+            last_liq_col = last_liq.get("colacion") or 0
+            last_liq_mov = last_liq.get("movilizacion") or 0
+            
+    colacion = last_liq_col
+    movilizacion_override = inputs.get("movilizacion_override")
+    movilizacion = int(movilizacion_override) if movilizacion_override is not None and str(movilizacion_override).strip() != "" else last_liq_mov
+    
+    bono_1 = int(inputs.get("bono_1", 0) or 0)
+    bono_2 = int(inputs.get("bono_2", 0) or 0)
+
+    gratificacion_override = inputs.get("gratificacion_override")
+    if gratificacion_override is not None and str(gratificacion_override).strip() != "":
+        gratificacion = int(gratificacion_override)
+    else:
+        grat_cap = (4.75 * imm_val) / 12.0
+        gratificacion = round(min((sueldo_base + bono_1 + bono_2) * 0.25, grat_cap))
+        
+    renta_1 = sueldo_base + bono_1 + bono_2
+    renta_2 = sueldo_base + gratificacion + movilizacion + bono_1 + bono_2
+    
+    valor_dia_vac = renta_1 / divisor
+    valor_dia_ias = renta_2 / divisor
+    
+    # 5. Payouts
+    vacaciones_monto = valor_dia_vac * dias_pendientes
+    
+    ts_yesno = str(inputs.get("ts_yesno", "NO"))
+    if ts_yesno == "SI":
+        meses_servicio = (cy * 12) + cm
+        if cd > 15:
+            meses_servicio += 1
+        dias_tiempo_servido = meses_servicio * 2.5
+    else:
+        meses_servicio = 0.0
+        dias_tiempo_servido = 0.0
+        
+    tiempo_servido_monto = valor_dia_ias * dias_tiempo_servido
+    
+    years_servicio = 0
+    if cy >= 1:
+        years_servicio = cy
+        if cm > 6 or (cm == 6 and cd > 0):
+            years_servicio += 1
+    years_a_pagar = min(years_servicio, 11)
+    
+    ias_monto = 0
+    if causal == "161":
+        ias_monto = years_a_pagar * min(renta_2, limit_clp)
+        
+    aviso_monto = 0
+    aviso_previo = inputs.get("aviso_previo", 0)
+    if causal == "161" and int(aviso_previo or 0) == 0:
+        aviso_monto = min(renta_2, limit_clp)
+        
+    descuento_afc_monto = 0
+    afc_override = inputs.get("afc_override")
+    if afc_override is not None and str(afc_override).strip() != "":
+        descuento_afc_monto = float(afc_override)
+    elif causal == "161":
+        historical_afc = 0
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT SUM(aporte_afc) FROM liquidaciones WHERE rut = ?", (rut,))
+            historical_afc = cursor.fetchone()[0] or 0
+        else:
+            historical_afc = inputs.get("historical_afc_sum", 0) or 0
+            
+        if historical_afc > 0:
+            afc_monto = historical_afc
+        else:
+            months_worked = total_days / 30.4375
+            limit_afc_clp = round(params.get("tope_imponible_afc_uf", 135.2) * uf_val)
+            afc_monto = round(months_worked * min(sueldo_base + gratificacion, limit_afc_clp) * 0.024)
+        descuento_afc_monto = min(afc_monto, ias_monto)
+        
+    compensatoria_monto = int(inputs.get("compensatoria_monto", 0) or 0)
+    prestamo_monto = int(inputs.get("prestamo_monto", 0) or 0)
+
+    total_subtotal = vacaciones_monto + tiempo_servido_monto + aviso_monto + ias_monto + compensatoria_monto
+    total_descuentos = descuento_afc_monto + prestamo_monto
+    total_finiquito = math.ceil(total_subtotal - total_descuentos)
+    
+    return {
+        "nombre": nombre,
+        "rut": rut,
+        "contrato": contrato,
+        "fecha_inicio": fecha_inicio_str,
+        "fecha_termino": fecha_termino_str,
+        "total_dias_trabajados": total_days,
+        "anos_servicio": cy,
+        "meses_servicio": cm,
+        "dias_servicio": cd,
+        "anos_servicio_ias": years_servicio,
+        "anos_servicio_pagar": years_a_pagar,
+        "sueldo_base_pactado": sueldo_base,
+        "gratificacion": gratificacion,
+        "colacion": colacion,
+        "movilizacion": movilizacion,
+        "renta_1": renta_1,
+        "renta_2": renta_2,
+        "dias_periodo": total_days,
+        "vac_devengadas": round(v_dev, 4),
+        "vac_progresivas": round(v_prog, 4),
+        "vac_inhabiles": round(v_inh, 4),
+        "vac_tomadas": round(v_tom, 4),
+        "valor_dia_vac": round(valor_dia_vac, 4),
+        "indem_tiempo_servido_yn": ts_yesno,
+        "tiempo_servido_meses": meses_servicio,
+        "tiempo_servido_dias": dias_tiempo_servido,
+        "tiempo_servido_monto": round(tiempo_servido_monto, 4),
+        "years_servicio": years_servicio,
+        "years_a_pagar": years_a_pagar,
+        "valor_dia_ias": round(valor_dia_ias, 4),
+        "compensatoria_monto": compensatoria_monto,
+        "prestamo_monto": prestamo_monto,
+        "bono_1": bono_1,
+        "bono_2": bono_2,
+        "dias_vacaciones_pendientes": round(dias_pendientes, 2),
+        "ias_monto": round(ias_monto),
+        "aviso_monto": round(aviso_monto),
+        "vacaciones_monto": round(vacaciones_monto),
+        "descuento_afc_monto": round(descuento_afc_monto),
+        "total_finiquito": total_finiquito
+    }
+
 
 # Indicator constants for May 2026
 UF_VALUE = 40610.69
@@ -357,6 +633,8 @@ def calculate_liquidation(employee, inputs=None, params=None):
     descuento_salud_adicional = descuento_salud_total - descuento_salud_obligatoria
     total_descuentos_legales = descuento_afp + descuento_salud_obligatoria + descuento_afc + descuento_impuesto
     
+    descuento_finiquito = ias_vacaciones + ias_anos_servicio + ias_aviso
+
     # 14. Subtotal Otros Descuentos (including Adicional Isapre and APVI)
     total_descuentos_otros = (
         anticipo + 
@@ -367,7 +645,8 @@ def calculate_liquidation(employee, inputs=None, params=None):
         seguro_complementario + 
         falp + 
         descuento_salud_adicional +
-        apvi_deduct
+        apvi_deduct +
+        descuento_finiquito
     )
     
     # 15. Total Descuentos
@@ -382,18 +661,27 @@ def calculate_liquidation(employee, inputs=None, params=None):
     sueldo_liquido = total_haberes - total_descuentos
     
     # 17. Employer Contributions (Aportes Patronales)
-    aporte_sis = round(afecto_afp * (tasa_sis / 100.0))
-    aporte_mutual = round(afecto_afp * (tasa_mutual / 100.0))
+    licencia_dias = inputs.get("licencia_dias", 0) or employee.get("licencia_dias", 0) or 0
+    proj_base = 0
+    if licencia_dias > 0:
+        daily_rate = sueldo_base_pactado / 30.0
+        proj_base = round(daily_rate * min(30, licencia_dias))
+        
+    base_patronal_afp = min(total_imponible + proj_base, tope_afp_clp)
+    base_patronal_afc = min(total_imponible + proj_base, tope_afc_clp)
+    
+    aporte_sis = round(base_patronal_afp * (tasa_sis / 100.0))
+    aporte_mutual = round(base_patronal_afp * (tasa_mutual / 100.0))
     
     if has_11_years:
-        aporte_afc = round(afecto_cesantia * 0.008)
+        aporte_afc = round(base_patronal_afc * 0.008)
     elif tipo_contrato in ('I', 'INDEFINIDO'):
-        aporte_afc = round(afecto_cesantia * 0.024)
+        aporte_afc = round(base_patronal_afc * 0.024)
     else:
         # Fixed term/Obra is 3.0% of Imponible
-        aporte_afc = round(afecto_cesantia * 0.03)
+        aporte_afc = round(base_patronal_afc * 0.03)
         
-    costo_empresa = total_haberes + aporte_sis + aporte_mutual + aporte_afc + round(total_imponible * 0.01)
+    costo_empresa = total_haberes + aporte_sis + aporte_mutual + aporte_afc + round(base_patronal_afp * 0.01)
     
     return {
         "sueldo_base_prop": sueldo_base_prop,

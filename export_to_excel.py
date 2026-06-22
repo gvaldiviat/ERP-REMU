@@ -19,7 +19,8 @@ def main():
     
     try:
         file_bytes = generate_excel(periodo)
-        out_path = f"c:\\Users\\Gonzalo Valdivia\\Documents\\ERP REMU\\Reporte_Analitico_Remuneraciones_{periodo}.xlsx"
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        out_path = os.path.join(base_dir, f"Reporte_Analitico_Remuneraciones_{periodo}.xlsx")
         
         with open(out_path, "wb") as f:
             f.write(file_bytes)
