@@ -4758,28 +4758,60 @@
                             periodsInRange.push({ year, month });
                         }
                         
-                        // Calculate days in each month
+                        // Helper to calculate business days (Monday-Saturday, excluding holidays)
+                        function getBusdays(start, end) {
+                            let count = 0;
+                            let curr = new Date(start.getTime());
+                            const holidaysSet = new Set(window.OFFLINE_DATA.holidays || []);
+                            while (curr <= end) {
+                                const day = curr.getDay(); // 0 is Sunday
+                                if (day !== 0) { // Monday to Saturday
+                                    const yStr = curr.getFullYear();
+                                    const mStr = (curr.getMonth() + 1).toString().padStart(2, '0');
+                                    const dStr = curr.getDate().toString().padStart(2, '0');
+                                    const iso = `${yStr}-${mStr}-${dStr}`;
+                                    if (!holidaysSet.has(iso)) {
+                                        count++;
+                                    }
+                                }
+                                curr.setDate(curr.getDate() + 1);
+                            }
+                            return count;
+                        }
+
+                        // Calculate days in each month using real business days (Mon-Sat, excluding holidays)
                         let totalDays = 0;
+                        let numMonths = 0;
                         periodsInRange.forEach(p => {
+                            const firstDayOfMonth = new Date(p.year, p.month - 1, 1);
+                            const lastDayOfMonth = new Date(p.year, p.month, 0);
+                            const busdaysInMonth = getBusdays(firstDayOfMonth, lastDayOfMonth);
+                            
+                            let daysWorked, scaleFactor;
                             if (p.year === year && p.month === month) {
-                                const lastDay = new Date(p.year, p.month, 0).getDate();
-                                if (dayLimit >= lastDay) {
-                                    totalDays += 30;
+                                if (dayLimit >= lastDayOfMonth.getDate()) {
+                                    daysWorked = busdaysInMonth;
+                                    scaleFactor = 1.0;
                                 } else {
-                                    totalDays += Math.min(30, dayLimit);
+                                    const targetDateObj = new Date(year, month - 1, dayLimit);
+                                    daysWorked = getBusdays(firstDayOfMonth, targetDateObj);
+                                    scaleFactor = busdaysInMonth > 0 ? (daysWorked / busdaysInMonth) : 0;
                                 }
                             } else {
-                                totalDays += 30;
+                                daysWorked = busdaysInMonth;
+                                scaleFactor = 1.0;
                             }
+                            totalDays += daysWorked;
+                            numMonths += scaleFactor;
                         });
                         
-                        const numMonths = totalDays / 30.0;
+                        const numMonthsVal = numMonths;
                         const baseDaysWorked = totalDays;
 
                         const emps = window.OFFLINE_DATA.employees[periodOrig] || [];
                         const activeEmps = emps.filter(e => idObras.includes(e.id_obra) && !e.fecha_finiquito);
                         
-                        // Count weekday holidays strictly from the last day of origin period (e.g. June 30th) to targetDate
+                        // Count weekday holidays strictly from the day after the origin period to targetDate
                         let totalWeekdayHolidaysCount = 0;
                         const targetDateObj = new Date(year, month - 1, dayLimit);
                         const projStartDate = new Date(origYr, origMo - 1, new Date(origYr, origMo, 0).getDate());
@@ -4791,7 +4823,7 @@
                                     const m = parseInt(parts[1], 10);
                                     const d = parseInt(parts[2], 10);
                                     const dt = new Date(y, m - 1, d);
-                                    if (dt >= projStartDate && dt <= targetDateObj) {
+                                    if (dt > projStartDate && dt <= targetDateObj) {
                                         const day = dt.getDay(); // 0 Sunday, 6 Saturday
                                         if (day >= 1 && day <= 6) { // Monday to Saturday
                                             totalWeekdayHolidaysCount++;
@@ -4965,28 +4997,60 @@
                             periodsInRange.push({ year, month });
                         }
                         
-                        // Calculate days in each month
+                        // Helper to calculate business days (Monday-Saturday, excluding holidays)
+                        function getBusdays(start, end) {
+                            let count = 0;
+                            let curr = new Date(start.getTime());
+                            const holidaysSet = new Set(window.OFFLINE_DATA.holidays || []);
+                            while (curr <= end) {
+                                const day = curr.getDay(); // 0 is Sunday
+                                if (day !== 0) { // Monday to Saturday
+                                    const yStr = curr.getFullYear();
+                                    const mStr = (curr.getMonth() + 1).toString().padStart(2, '0');
+                                    const dStr = curr.getDate().toString().padStart(2, '0');
+                                    const iso = `${yStr}-${mStr}-${dStr}`;
+                                    if (!holidaysSet.has(iso)) {
+                                        count++;
+                                    }
+                                }
+                                curr.setDate(curr.getDate() + 1);
+                            }
+                            return count;
+                        }
+
+                        // Calculate days in each month using real business days (Mon-Sat, excluding holidays)
                         let totalDays = 0;
+                        let numMonths = 0;
                         periodsInRange.forEach(p => {
+                            const firstDayOfMonth = new Date(p.year, p.month - 1, 1);
+                            const lastDayOfMonth = new Date(p.year, p.month, 0);
+                            const busdaysInMonth = getBusdays(firstDayOfMonth, lastDayOfMonth);
+                            
+                            let daysWorked, scaleFactor;
                             if (p.year === year && p.month === month) {
-                                const lastDay = new Date(p.year, p.month, 0).getDate();
-                                if (dayLimit >= lastDay) {
-                                    totalDays += 30;
+                                if (dayLimit >= lastDayOfMonth.getDate()) {
+                                    daysWorked = busdaysInMonth;
+                                    scaleFactor = 1.0;
                                 } else {
-                                    totalDays += Math.min(30, dayLimit);
+                                    const targetDateObj = new Date(year, month - 1, dayLimit);
+                                    daysWorked = getBusdays(firstDayOfMonth, targetDateObj);
+                                    scaleFactor = busdaysInMonth > 0 ? (daysWorked / busdaysInMonth) : 0;
                                 }
                             } else {
-                                totalDays += 30;
+                                daysWorked = busdaysInMonth;
+                                scaleFactor = 1.0;
                             }
+                            totalDays += daysWorked;
+                            numMonths += scaleFactor;
                         });
                         
-                        const numMonths = totalDays / 30.0;
+                        const numMonthsVal = numMonths;
                         const baseDaysWorked = totalDays;
 
                         const emps = window.OFFLINE_DATA.employees[periodOrig] || [];
                         const activeEmps = emps.filter(e => idObras.includes(e.id_obra) && !e.fecha_finiquito);
                         
-                        // Count weekday holidays strictly from the last day of origin period (e.g. June 30th) to targetDate
+                        // Count weekday holidays strictly from the day after the origin period to targetDate
                         let totalWeekdayHolidaysCount = 0;
                         const targetDateObj = new Date(year, month - 1, dayLimit);
                         const projStartDate = new Date(origYr, origMo - 1, new Date(origYr, origMo, 0).getDate());
@@ -4998,7 +5062,7 @@
                                     const m = parseInt(parts[1], 10);
                                     const d = parseInt(parts[2], 10);
                                     const dt = new Date(y, m - 1, d);
-                                    if (dt >= projStartDate && dt <= targetDateObj) {
+                                    if (dt > projStartDate && dt <= targetDateObj) {
                                         const day = dt.getDay(); // 0 Sunday, 6 Saturday
                                         if (day >= 1 && day <= 6) { // Monday to Saturday
                                             totalWeekdayHolidaysCount++;

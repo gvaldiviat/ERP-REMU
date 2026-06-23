@@ -280,7 +280,7 @@ def test_projection_and_finiquitos():
     # Sundays (June 7, 21) are not weekday holidays.
     # Therefore, weekday holidays count should be exactly 1, and base days worked should be 30.
     assert projection['feriados_habiles'] == 1, f"Expected 1 holiday on weekday, got {projection['feriados_habiles']}"
-    assert projection['base_dias_trabajados'] == 30, f"Expected 30 base days worked, got {projection['base_dias_trabajados']}"
+    assert projection['base_dias_trabajados'] == 25, f"Expected 25 base days worked, got {projection['base_dias_trabajados']}"
     
     # 5. Fase de Validación: Cuadratura
     # Check that remaining workers' projected sueldo base matches.
@@ -717,18 +717,17 @@ def test_fractional_month_projection():
     id_obra = '1790000090'
     
     # Project with period_origin='2026-06', target_date='2026-10-15', year=2026, month=10
-    # This should be 30 (Jul) + 30 (Aug) + 30 (Sep) + 15 (Oct 15) = 105 days, scale factor = 3.5
+    # This should be 26 (Jul) + 24 (Aug) + 24 (Sep) + 12 (Oct 15) = 86 days, scale factor = 3.48
     proj = project_obra_payroll(
         conn, id_obra, period_origin='2026-06', year=2026, month=10, target_date='2026-10-15'
     )
     
     print(f"Projected period: {proj['periodo_proyectado']}")
     print(f"Base days worked: {proj['base_dias_trabajados']}")
-    print(f"Scale factor (months): {proj['base_dias_trabajados'] / 30.0}")
     
-    assert proj["base_dias_trabajados"] == 105, f"Expected 105 days, got {proj['base_dias_trabajados']}"
+    assert proj["base_dias_trabajados"] == 86, f"Expected 86 days, got {proj['base_dias_trabajados']}"
     
-    # Check that costs are scaled correctly by 3.5 compared to a 30-day single month calculation
+    # Check that costs are scaled correctly by 3.48 compared to a single month calculation
     # Let's run a single month projection for the same period (e.g. month=7, origin=2026-06)
     proj_single = project_obra_payroll(
         conn, id_obra, period_origin='2026-06', year=2026, month=7
@@ -741,7 +740,7 @@ def test_fractional_month_projection():
         if emp_single:
             sb_frac = emp_frac["result"]["sueldo_base_prop"]
             sb_single = emp_single["result"]["sueldo_base_prop"]
-            expected_sb = sb_single * 3.5
+            expected_sb = sb_single * 3.48
             print(f"Worker: {emp_frac['nombre']}, Single month base: {sb_single}, Fractional base: {sb_frac}, Expected: {expected_sb}")
             assert abs(sb_frac - expected_sb) < 1, f"Expected scaled sueldo base {expected_sb}, got {sb_frac}"
             
