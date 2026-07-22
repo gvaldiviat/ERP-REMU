@@ -1,16 +1,66 @@
 import sqlite3
 
 # Monkey-patch sqlite3.connect to automatically use uri=True and nolock=1 to prevent WSL2 bind-mount disk I/O errors
-_original_connect = sqlite3.connect
-def _custom_connect(database, *args, **kwargs):
-    if isinstance(database, str) and (database.endswith('.db') or 'remuneraciones.db' in database) and not database.startswith('file:'):
-        db_path = database.replace('\\', '/')
-        database = f"file:{db_path}?nolock=1"
-        kwargs['uri'] = True
-    return _original_connect(database, *args, **kwargs)
-sqlite3.connect = _custom_connect
+if not hasattr(sqlite3, "_original_connect"):
+    sqlite3._original_connect = sqlite3.connect
+    def _custom_connect(database, *args, **kwargs):
+        if isinstance(database, str) and (database.endswith('.db') or 'remuneraciones.db' in database) and not database.startswith('file:'):
+            db_path = database.replace('\\', '/')
+            import sys
+            if sys.platform == 'win32':
+                database = f"file:{db_path}?nolock=1"
+            else:
+                database = f"file:{db_path}?vfs=unix-none"
+            kwargs['uri'] = True
+        conn = sqlite3._original_connect(database, *args, **kwargs)
+        try:
+            conn.execute("PRAGMA busy_timeout = 10000;")
+            conn.execute("PRAGMA journal_mode = MEMORY;")
+            conn.execute("PRAGMA synchronous = OFF;")
+        except:
+            pass
+        return conn
+    sqlite3.connect = _custom_connect
 
 import openpyxl
+import shutil
+import tempfile
+
+if not hasattr(openpyxl, "_original_load_workbook"):
+    openpyxl._original_load_workbook = openpyxl.load_workbook
+    def _custom_load_workbook(filename, *args, **kwargs):
+        if isinstance(filename, str) and os.path.exists(filename):
+            dir_name = os.path.dirname(filename)
+            temp_path = os.path.join(dir_name, "~temp_" + os.path.basename(filename))
+            try:
+                shutil.copyfile(filename, temp_path)
+                wb = openpyxl._original_load_workbook(temp_path, *args, **kwargs)
+                return wb
+            finally:
+                if os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except:
+                        pass
+        return openpyxl._original_load_workbook(filename, *args, **kwargs)
+    openpyxl.load_workbook = _custom_load_workbook
+
+    # Patch openpyxl CustomFilterValueDescriptor to ignore validation errors on invalid Excel filter values
+    try:
+        import openpyxl.worksheet.filters as filters
+        from openpyxl.descriptors.base import Convertible
+        def _custom_set(self, instance, value):
+            if isinstance(value, str):
+                m = self.pattern.match(value)
+                if not m:
+                    self.expected_type = str
+                elif "*" in value:
+                    self.expected_type = str
+            Convertible.__set__(self, instance, value)
+        filters.CustomFilterValueDescriptor.__set__ = _custom_set
+    except Exception as patch_err:
+        print(f"Warning: Failed to patch openpyxl filters: {patch_err}")
+
 import json
 import os
 import glob
@@ -29,21 +79,59 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Drop existing tables to refresh schema
-    cursor.execute("DROP TABLE IF EXISTS empleados")
-    cursor.execute("DROP TABLE IF EXISTS rex_comparisons")
-    cursor.execute("DROP TABLE IF EXISTS parametros")
-    cursor.execute("DROP TABLE IF EXISTS liquidaciones")
-    cursor.execute("DROP TABLE IF EXISTS cargos_mapping")
-    cursor.execute("DROP TABLE IF EXISTS proyectos_mapping")
-    cursor.execute("DROP TABLE IF EXISTS vacaciones_ajustes")
-    cursor.execute("DROP TABLE IF EXISTS vacaciones_reporte")
-    cursor.execute("DROP TABLE IF EXISTS finiquitos_guardados")
+    # Truncate tables instead of dropping them to prevent schema lock conflicts in WSL2/Docker
+    for table in ["empleados", "rex_comparisons", "planilla_entradas", "parametros", "liquidaciones", 
+                  "cargos_mapping", "proyectos_mapping", "vacaciones_ajustes", "vacaciones_reporte", 
+                  "finiquitos_guardados", "alertas_auditoria"]:
+        try:
+            cursor.execute(f"DELETE FROM {table}")
+        except sqlite3.OperationalError:
+            pass
     # Keep liquidaciones_snapshots to preserve process comparisons history
+
+    # Create planilla_entradas table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS planilla_entradas (
+        rut TEXT,
+        contrato INTEGER,
+        periodo TEXT,
+        dias_trabajados INTEGER,
+        sueldo_base REAL,
+        bono_descanso REAL,
+        bono_feriado REAL,
+        bono_incentivo REAL,
+        bono_responsabilidad REAL,
+        bono_gestion REAL,
+        bono_permanencia REAL,
+        gratificacion REAL,
+        diferencia_gratificacion REAL,
+        colacion REAL,
+        movilizacion REAL,
+        pasajes REAL,
+        traslados REAL,
+        bono_estudios REAL,
+        bono_fallecimiento REAL,
+        apvi REAL,
+        anticipo REAL,
+        ccaf_credito REAL,
+        ccaf_prestamo REAL,
+        retencion_judicial REAL,
+        prestamos_empresa REAL,
+        seguro_complementario REAL,
+        falp REAL,
+        ahorro_afp REAL,
+        licencia_dias INTEGER,
+        justificaciones_json TEXT,
+        observaciones TEXT,
+        hash_origen TEXT,
+        timestamp_carga TEXT,
+        PRIMARY KEY (rut, contrato, periodo)
+    )
+    """)
 
     # Create employees table with composite primary key (rut, contrato)
     cursor.execute("""
-    CREATE TABLE empleados (
+    CREATE TABLE IF NOT EXISTS empleados (
         rut TEXT,
         contrato INTEGER,
         nombre TEXT,
@@ -84,7 +172,7 @@ def init_db():
 
     # Create rex_comparisons table with composite primary key (rut, contrato, periodo)
     cursor.execute("""
-    CREATE TABLE rex_comparisons (
+    CREATE TABLE IF NOT EXISTS rex_comparisons (
         rut TEXT,
         contrato INTEGER,
         nombre TEXT,
@@ -97,6 +185,7 @@ def init_db():
         bono_gestion REAL,
         bono_permanencia REAL,
         gratificacion REAL,
+        diferencia_gratificacion REAL,
         colacion REAL,
         movilizacion REAL,
         pasajes REAL,
@@ -146,7 +235,7 @@ def init_db():
 
     # Create parameters table
     cursor.execute("""
-    CREATE TABLE parametros (
+    CREATE TABLE IF NOT EXISTS parametros (
         clave TEXT PRIMARY KEY,
         valor REAL,
         descripcion TEXT
@@ -155,12 +244,13 @@ def init_db():
 
     # Create liquidations table (calculated results)
     cursor.execute("""
-    CREATE TABLE liquidaciones (
+    CREATE TABLE IF NOT EXISTS liquidaciones (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         rut TEXT,
         contrato INTEGER,
         periodo TEXT, -- Format YYYY-MM
         dias_trabajados INTEGER,
+        sueldo_base INTEGER,
         horas_extras INTEGER,
         monto_horas_extras INTEGER,
         bono_descanso INTEGER,
@@ -209,13 +299,15 @@ def init_db():
         descuento_falp INTEGER DEFAULT 0,
         total_descuentos_legales INTEGER DEFAULT 0,
         total_descuentos_otros INTEGER DEFAULT 0,
+        ias_anticipo_finiquito INTEGER DEFAULT 0,
+        ias_seguro_cesantia_recuperado INTEGER DEFAULT 0,
         FOREIGN KEY (rut, contrato) REFERENCES empleados(rut, contrato)
     )
     """)
 
     # Create Cargo and Project lookup tables
-    cursor.execute("CREATE TABLE cargos_mapping (cargo TEXT PRIMARY KEY, generico TEXT)")
-    cursor.execute("CREATE TABLE proyectos_mapping (centro_costo TEXT PRIMARY KEY, generico TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS cargos_mapping (cargo TEXT PRIMARY KEY, generico TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS proyectos_mapping (centro_costo TEXT PRIMARY KEY, generico TEXT)")
 
     # Create liquidations snapshots table (archive of previous calculations)
     cursor.execute("""
@@ -273,6 +365,8 @@ def init_db():
         descuento_falp INTEGER DEFAULT 0,
         total_descuentos_legales INTEGER DEFAULT 0,
         total_descuentos_otros INTEGER DEFAULT 0,
+        ias_anticipo_finiquito INTEGER DEFAULT 0,
+        ias_seguro_cesantia_recuperado INTEGER DEFAULT 0,
         snapshot_timestamp TEXT DEFAULT (datetime('now', 'localtime'))
     )
     """)
@@ -360,6 +454,174 @@ def init_db():
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS alertas_auditoria (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rut TEXT,
+        contrato INTEGER,
+        periodo TEXT,
+        tipo_alerta TEXT,
+        detalle TEXT,
+        fecha_deteccion TEXT DEFAULT (datetime('now', 'localtime')),
+        UNIQUE (rut, contrato, periodo, tipo_alerta, detalle)
+    )
+    """)
+
+    # 1. Tabla kpi_desviaciones_mensuales
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS kpi_desviaciones_mensuales (
+        rut TEXT,
+        contrato INTEGER,
+        periodo TEXT,
+        alcance_liquido_calc INTEGER,
+        alcance_liquido_rex INTEGER,
+        diff_alcance INTEGER,
+        total_imponible_calc INTEGER,
+        total_imponible_rex INTEGER,
+        diff_imponible INTEGER,
+        costo_empresa_calc INTEGER,
+        costo_empresa_rex INTEGER,
+        diff_costo INTEGER,
+        reconciliado INTEGER DEFAULT 0,
+        PRIMARY KEY (rut, contrato, periodo)
+    )
+    """)
+
+    # 2. Columna virtual anio_fiscal
+    try:
+        cursor.execute("ALTER TABLE kpi_desviaciones_mensuales ADD COLUMN anio_fiscal INTEGER GENERATED ALWAYS AS (CAST(SUBSTR(periodo, 1, 4) AS INTEGER))")
+    except sqlite3.OperationalError:
+        pass
+
+    # 3. Tabla logs_alertas
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS logs_alertas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rut TEXT,
+        contrato INTEGER,
+        tipo_alerta TEXT,
+        descripcion TEXT,
+        periodos_afectados TEXT,
+        deriva_acumulada INTEGER,
+        fecha_creacion TEXT DEFAULT (datetime('now', 'localtime')),
+        leida INTEGER DEFAULT 0,
+        nota_resolucion TEXT,
+        FOREIGN KEY(rut, contrato) REFERENCES empleados(rut, contrato)
+    )
+    """)
+
+    # 4. Índices
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_kpi_desv_unique ON kpi_desviaciones_mensuales(rut, periodo, contrato)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_kpi_desv_anio_activo ON kpi_desviaciones_mensuales(anio_fiscal) WHERE reconciliado = 0")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_logs_alertas_no_leidas ON logs_alertas(leida, fecha_creacion DESC)")
+
+    # 5. Triggers
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_sync_desviaciones_insert
+    AFTER INSERT ON liquidaciones
+    BEGIN
+        INSERT OR REPLACE INTO kpi_desviaciones_mensuales
+        SELECT 
+            new.rut,
+            new.contrato,
+            new.periodo,
+            new.alcance_liquido,
+            COALESCE(c.alcance_liquido, 0),
+            (new.alcance_liquido - COALESCE(c.alcance_liquido, 0)),
+            new.total_imponible,
+            COALESCE(c.total_imponible, 0),
+            (new.total_imponible - COALESCE(c.total_imponible, 0)),
+            new.costo_empresa,
+            COALESCE(c.costo_empresa, 0),
+            (new.costo_empresa - COALESCE(c.costo_empresa, 0)),
+            COALESCE((SELECT aprobado FROM reconciliaciones WHERE rut = new.rut AND contrato = new.contrato AND periodo = new.periodo), 0)
+        FROM rex_comparisons c
+        WHERE c.rut = new.rut AND c.contrato = new.contrato AND c.periodo = new.periodo;
+    END;
+    """)
+
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_sync_reconciliacion_upsert
+    AFTER INSERT ON reconciliaciones
+    BEGIN
+        UPDATE kpi_desviaciones_mensuales
+        SET reconciliado = new.aprobado
+        WHERE rut = new.rut 
+          AND contrato = new.contrato 
+          AND periodo = new.periodo;
+    END;
+    """)
+
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_sync_reconciliacion_update
+    AFTER UPDATE ON reconciliaciones
+    BEGIN
+        UPDATE kpi_desviaciones_mensuales
+        SET reconciliado = new.aprobado
+        WHERE rut = new.rut 
+          AND contrato = new.contrato 
+          AND periodo = new.periodo;
+    END;
+    """)
+
+    # 6. Vista v_auditoria_deriva_acumulada
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS v_auditoria_deriva_acumulada AS
+    SELECT 
+        rut,
+        contrato,
+        periodo,
+        diff_alcance,
+        SUM(diff_alcance) OVER (
+            PARTITION BY rut, contrato 
+            ORDER BY periodo ASC 
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS deriva_acumulada_alcance,
+        diff_costo,
+        SUM(diff_costo) OVER (
+            PARTITION BY rut, contrato 
+            ORDER BY periodo ASC 
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS deriva_acumulada_costo
+    FROM kpi_desviaciones_mensuales;
+    """)
+
+    # 7. Vista v_costo_no_calidad
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS v_costo_no_calidad AS
+    SELECT 
+        periodo,
+        COUNT(DISTINCT rut) AS total_empleados_afectados,
+        SUM(ABS(diff_alcance)) AS fuga_neta_liquido_detectada,
+        SUM(ABS(diff_costo)) AS desviacion_presupuestaria_total,
+        SUM(CASE WHEN reconciliado = 1 THEN ABS(diff_costo) ELSE 0 END) AS costo_mitigado,
+        SUM(CASE WHEN reconciliado = 0 THEN ABS(diff_costo) ELSE 0 END) AS riesgo_financiero_activo
+    FROM kpi_desviaciones_mensuales
+    GROUP BY periodo;
+    """)
+
+    # 8. Vista v_riesgo_provision_finiquitos
+    cursor.execute("""
+    CREATE VIEW IF NOT EXISTS v_riesgo_provision_finiquitos AS
+    SELECT 
+        e.rut,
+        e.contrato,
+        e.nombre,
+        e.id_obra,
+        e.sueldo_base,
+        e.fecha_inicio_contrato,
+        CAST((strftime('%s', '2026-06-30') - strftime('%s', e.fecha_inicio_contrato)) / (3600 * 24 * 30.43) AS INTEGER) AS meses_antiguedad,
+        ROUND(CAST((strftime('%s', '2026-06-30') - strftime('%s', e.fecha_inicio_contrato)) / (3600 * 24 * 30.43) AS REAL) * 1.25, 2) AS vacaciones_proporcionales_estimadas,
+        ROUND(e.sueldo_base / 30.0, 2) AS valor_dia_estimado,
+        ROUND(
+            (MIN(11, CAST((strftime('%s', '2026-06-30') - strftime('%s', e.fecha_inicio_contrato)) / (3600 * 24 * 365) AS INTEGER)) * e.sueldo_base) + 
+            (CAST((strftime('%s', '2026-06-30') - strftime('%s', e.fecha_inicio_contrato)) / (3600 * 24 * 30.43) AS REAL) * 1.25 * (e.sueldo_base / 30.0)),
+            0
+        ) AS pasivo_laboral_estimado
+    FROM empleados e
+    WHERE e.fecha_finiquito IS NULL OR e.fecha_finiquito = '';
+    """)
+
     conn.commit()
     conn.close()
     print("Database tables created.")
@@ -413,9 +675,9 @@ def format_date(dt):
     return s[:10]
 
 def load_employees_from_excel(custom_paths=None):
-    active_path = r"c:\Users\Gonzalo Valdivia\Documents\ERP REMU\listado_empleados_activos.xlsx"
-    inactive_path = r"c:\Users\Gonzalo Valdivia\Documents\ERP REMU\listado_empleados_inactivos.xlsx"
-    fallback_path = r"c:\Users\Gonzalo Valdivia\Documents\ERP REMU\listado_empleados.xlsx"
+    active_path = os.path.join(BASE_DIR, "listado_empleados_activos.xlsx")
+    inactive_path = os.path.join(BASE_DIR, "listado_empleados_inactivos.xlsx")
+    fallback_path = os.path.join(BASE_DIR, "listado_empleados.xlsx")
     
     paths_to_load = []
     if custom_paths:
@@ -785,6 +1047,386 @@ def load_all_justifications():
             
     return all_extra_data
 
+def load_planilla_entradas(custom_files=None):
+    print("Loading general monthly planilla inputs...")
+    import hashlib
+    import datetime
+    
+    if custom_files:
+        files = custom_files
+    else:
+        # Default files to scan
+        files = [
+            os.path.join(BASE_DIR, "Datos de entrada", "PLANILA GENERAL JUNIO 2026.xlsx"),
+            os.path.join(BASE_DIR, "Datos de entrada", "PLANILLA GENERAL MAYO 2026.xlsx"),
+            os.path.join(BASE_DIR, "Datos de entrada", "PLANILLA GENERAL ABRIL 2026.xlsx"),
+            os.path.join(BASE_DIR, "Datos de entrada", "PLANILLA GENERAL MARZO 2026.xlsx"),
+            os.path.join(BASE_DIR, "Datos de entrada", "PLANILLA GENERAL FEBRERO 2026.xlsx"),
+            os.path.join(BASE_DIR, "Datos de entrada", "PLANILLA GENERAL ENERO 2026.xlsx")
+        ]
+        files = [f for f in files if os.path.exists(f)]
+
+    if not files:
+        print("No general monthly planilla files found.")
+        return
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    all_extra_data = load_all_justifications()
+    timestamp_now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    total_count = 0
+    for filepath in files:
+        print(f"Parsing Planilla Entrada: {os.path.basename(filepath)}")
+        
+        # Calculate SHA-256 hash
+        sha256 = hashlib.sha256()
+        with open(filepath, 'rb') as f:
+            while True:
+                data = f.read(65536)
+                if not data:
+                    break
+                sha256.update(data)
+        file_hash = sha256.hexdigest()
+
+        wb = openpyxl.load_workbook(filepath, data_only=True)
+        # Search for sheet
+        sheetname = None
+        for s in ['Planilla General', 'Planilla General Enero 2026', 'PLANILLA GENERAL FEBRERO 2026', 'PLANILA GENERAL MARZO 2026', 'PLANILLA GENERAL ABRIL 2026', 'Detalle']:
+            if s in wb.sheetnames:
+                sheetname = s
+                break
+        sheet = wb[sheetname] if sheetname else wb.active
+
+        # Dynamically find the header row by searching the first 15 rows for "rut" and "contrato"
+        header_row_idx = 5
+        for idx in range(1, 16):
+            rows_iter = list(sheet.iter_rows(min_row=idx, max_row=idx, values_only=True))
+            if rows_iter and rows_iter[0]:
+                row_vals_clean = [str(c).lower().strip() for c in rows_iter[0] if c is not None]
+                if any("rut" in c for c in row_vals_clean) and (any("contrato" in c for c in row_vals_clean) or any("cargo" in c for c in row_vals_clean) or any("apellido" in c for c in row_vals_clean) or any("nombre" in c for c in row_vals_clean)):
+                    header_row_idx = idx
+                    break
+                    
+        headers_row = list(sheet.iter_rows(min_row=header_row_idx, max_row=header_row_idx, values_only=True))[0]
+        
+        def clean(s):
+            if not s:
+                return ""
+            s = str(s).lower().strip()
+            s = s.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
+            s = s.replace("ñ", "n").replace("ü", "u")
+            s = s.replace("  ", " ")
+            return s
+
+        # Find the last 'Agrupación' column index to parse only user inputs (ignoring system summaries before it)
+        idx_last_agrupacion = None
+        for idx, h in enumerate(headers_row):
+            if h and "agrup" in clean(h):
+                idx_last_agrupacion = idx
+
+        def get_col_idx(candidates, after_idx=None):
+            cleaned_candidates = [clean(c) for c in candidates]
+            for idx, h in enumerate(headers_row):
+                if after_idx is not None and idx <= after_idx:
+                    continue
+                if h and clean(h) in cleaned_candidates:
+                    return idx
+            for idx, h in enumerate(headers_row):
+                if after_idx is not None and idx <= after_idx:
+                    continue
+                if h:
+                    ch = clean(h)
+                    for cc in cleaned_candidates:
+                        if cc == "contrato" and any(term in ch for term in ["inicio", "termino", "tipo", "fin", "ingreso", "retiro"]):
+                            continue
+                        if cc and ch:
+                            if len(ch) <= 3 and ch != cc:
+                                continue
+                            if cc in ch or ch in cc:
+                                return idx
+            return None
+
+        idx_rut = get_col_idx(["rut"])
+        idx_contrato = get_col_idx(["contrato"])
+        idx_dias = get_col_idx(["dias trabajados", "das trabajados", "trabajados", "tdt", "t.d.t."])
+        idx_sueldo_base = get_col_idx(["sueldo base contrato", "sueldo base pactado", "sueldo base"])
+        
+        idx_bono_desc = get_col_idx(["bono descanso", "descanso"], after_idx=idx_last_agrupacion)
+        idx_bono_feri = get_col_idx(["bono feriado", "feriado"], after_idx=idx_last_agrupacion)
+        idx_bono_inc = get_col_idx(["bono incentivo variable", "bono incentivo", "incentivo"], after_idx=idx_last_agrupacion)
+        idx_bono_resp = get_col_idx(["bono responsabilidad", "responsabilidad"], after_idx=idx_last_agrupacion)
+        idx_bono_gest = get_col_idx(["bono gestion variable", "bono gestion", "bono gestin variable", "gestion"], after_idx=idx_last_agrupacion)
+        idx_bono_perm = get_col_idx(["bono de permanencia", "bono permanencia", "permanencia"], after_idx=idx_last_agrupacion)
+        
+        idx_grat = get_col_idx(["gratificacion", "gratificacin"])
+        idx_col = get_col_idx(["colacion", "colacin"])
+        idx_mov = get_col_idx(["movilizacion", "movilizacion"])
+        idx_pasajes = get_col_idx(["pasajes"], after_idx=idx_last_agrupacion)
+        idx_traslados = get_col_idx(["traslados"], after_idx=idx_last_agrupacion)
+        idx_estudios = get_col_idx(["bono estudios", "estudios"], after_idx=idx_last_agrupacion)
+        idx_fallecimiento = get_col_idx(["bono fallecimiento", "fallecimiento"], after_idx=idx_last_agrupacion)
+        
+        idx_apvi = get_col_idx(["apvi", "apv"], after_idx=idx_last_agrupacion)
+        idx_anticipo = get_col_idx(["anticipo"], after_idx=idx_last_agrupacion)
+        idx_ccaf_credito = get_col_idx(["ccaf credito", "credito ccaf", "credito caja", "credito araucana", "cajacred", "creditos personales ccaf"], after_idx=idx_last_agrupacion)
+        idx_ccaf_prestamo = get_col_idx(["ccaf prestamo", "prestamo ccaf", "prestamo caja comp. la araucana", "prestamo caja", "la araucana", "araucana", "prestamo caja la araucana", "prestamocaraucana", "prestamo c araucana", "los heroes", "heroes", "caja los heroes", "18 de septiembre", "caja 18", "los andes", "caja los andes"], after_idx=idx_last_agrupacion)
+        idx_retencion_judicial = get_col_idx(["retencion judicial"], after_idx=idx_last_agrupacion)
+        idx_prestamos_empresa = get_col_idx(["prestamos empresa", "prestamo empresa"], after_idx=idx_last_agrupacion)
+        idx_seguro_complementario = get_col_idx(["seguro complementario"], after_idx=idx_last_agrupacion)
+        idx_falp = get_col_idx(["falp"], after_idx=idx_last_agrupacion)
+        idx_ahorro_afp = get_col_idx(["ahorro afp"], after_idx=idx_last_agrupacion)
+        idx_licencia_dias = get_col_idx(["dias con licencia medica", "licenciadias", "licencia"])
+        idx_periodo = get_col_idx(["proceso"])
+
+        # Dynamic mapping for exponibles/non-exponibles
+        earning_mappings = {}
+        unmapped_indices = set()
+        if True:
+            explicit_idxs = {idx_rut, idx_contrato, idx_dias, idx_sueldo_base, idx_grat, idx_col, idx_mov, idx_pasajes, idx_traslados, idx_estudios, idx_fallecimiento, idx_apvi, idx_anticipo, idx_ccaf_credito, idx_ccaf_prestamo, idx_retencion_judicial, idx_prestamos_empresa, idx_seguro_complementario, idx_falp, idx_ahorro_afp, idx_licencia_dias, idx_periodo}
+            
+            start_mapping_idx = idx_sueldo_base + 1 if idx_sueldo_base is not None else 1
+                
+            for idx in range(start_mapping_idx, len(headers_row)):
+                if idx in explicit_idxs:
+                    continue
+                header = headers_row[idx]
+                if not header:
+                    continue
+                h_clean = clean(header)
+                
+                # Skip metadata and non-payment columns
+                skip_terms = ["justificacion", "observacion", "observaciones", "sindicato", "pauta", "banco", "cuenta", "turno", "cargo", "inicio", "termino", "nombre", "empresa", "proceso", "total", "afecto", "liquido", "costo", "haberes", "descuento", "rebaja", "afp", "salud", "isapre", "contrato", "rut", "dias", "licencia", "ccaf", "mutual", "seguro", "aporte", "fapp", "sis", "impuesto", "cc", "apellido"]
+                if any(term in h_clean for term in skip_terms):
+                    continue
+                
+                is_severance = False
+                for term in ["ias", "vacaciones", "indemnizacion", "indemnizacin", "tiempo servido", "aviso", "finiquito", "licencia", "permiso"]:
+                    if term in h_clean:
+                        if term == "ias" and "dias" in h_clean:
+                            continue
+                        is_severance = True
+                        break
+                if is_severance:
+                    continue
+                
+                is_non_imp = False
+                for term in ["colacion", "colacin", "movilizacion", "movilizacin", "pasajes", "traslados", "viatico", "cargas", "sala cuna", "estudios", "fallecimiento", "sobregiro", "devolucion", "reembolso", "ccaf", "familiar", "retroactiva"]:
+                    if term in h_clean:
+                        is_non_imp = True
+                        break
+                        
+                if is_non_imp:
+                    if "colacion" in h_clean:
+                        earning_mappings[idx] = ("non_imponible", "colacion")
+                    elif "movilizacion" in h_clean:
+                        earning_mappings[idx] = ("non_imponible", "movilizacion")
+                    elif "pasajes" in h_clean:
+                        earning_mappings[idx] = ("non_imponible", "pasajes")
+                    elif "traslados" in h_clean or "viatico" in h_clean:
+                        earning_mappings[idx] = ("non_imponible", "traslados")
+                    elif "fallecimiento" in h_clean:
+                        earning_mappings[idx] = ("non_imponible", "fallecimiento")
+                    elif "estudios" in h_clean:
+                        earning_mappings[idx] = ("non_imponible", "bono_estudios")
+                    else:
+                        unmapped_indices.add(idx)
+                else:
+                    if "diferencia" in h_clean and ("gratificacion" in h_clean or "gratificacin" in h_clean):
+                        earning_mappings[idx] = ("imponible", "diferencia_gratificacion")
+                        continue
+                    if h_clean == "gratificacion" or h_clean == "gratificacin":
+                        continue
+                    if "descanso" in h_clean:
+                        earning_mappings[idx] = ("imponible", "bono_descanso")
+                    elif "feriado" in h_clean:
+                        earning_mappings[idx] = ("imponible", "bono_feriado")
+                    elif "responsabilidad" in h_clean:
+                        earning_mappings[idx] = ("imponible", "bono_responsabilidad")
+                    elif "gestion" in h_clean:
+                        earning_mappings[idx] = ("imponible", "bono_gestion")
+                    elif "permanencia" in h_clean:
+                        earning_mappings[idx] = ("imponible", "bono_permanencia")
+                    elif "incentivo" in h_clean:
+                        earning_mappings[idx] = ("imponible", "bono_incentivo")
+                    else:
+                        unmapped_indices.add(idx)
+
+        count = 0
+        consecutive_empty = 0
+        for row in sheet.iter_rows(min_row=header_row_idx+1, values_only=True):
+            safe_rut_idx = idx_rut if idx_rut is not None else 1
+            safe_contrato_idx = idx_contrato if idx_contrato is not None else 0
+            if not row or len(row) <= max(safe_rut_idx, safe_contrato_idx) or not row[safe_rut_idx]:
+                consecutive_empty += 1
+                if consecutive_empty > 50:
+                    break
+                continue
+            consecutive_empty = 0
+
+            rut = clean_rut(row[safe_rut_idx])
+            contrato = int(row[idx_contrato]) if idx_contrato is not None and row[idx_contrato] is not None else 1
+            dias_trabajados = int(row[idx_dias]) if idx_dias is not None and row[idx_dias] is not None else 30
+            sueldo_base = row[idx_sueldo_base] if idx_sueldo_base is not None and row[idx_sueldo_base] is not None else 0.0
+            
+            # Initialize earnings
+            bono_desc = 0.0
+            bono_feri = 0.0
+            bono_resp = 0.0
+            bono_gest = 0.0
+            bono_perm = 0.0
+            bono_inc = 0.0
+            diferencia_gratificacion = 0.0
+            colacion = float(row[idx_col]) if idx_col is not None and idx_col < len(row) and row[idx_col] is not None else 0.0
+            movilizacion = float(row[idx_mov]) if idx_mov is not None and idx_mov < len(row) and row[idx_mov] is not None else 0.0
+            pasajes = float(row[idx_pasajes]) if idx_pasajes is not None and idx_pasajes < len(row) and row[idx_pasajes] is not None else 0.0
+            traslados = float(row[idx_traslados]) if idx_traslados is not None and idx_traslados < len(row) and row[idx_traslados] is not None else 0.0
+            bono_fallecimiento = float(row[idx_fallecimiento]) if idx_fallecimiento is not None and idx_fallecimiento < len(row) and row[idx_fallecimiento] is not None else 0.0
+            bono_estudios = float(row[idx_estudios]) if idx_estudios is not None and idx_estudios < len(row) and row[idx_estudios] is not None else 0.0
+            
+            # Audit for duplicates
+            conceptos_vistos = {}
+            for b_idx, (earn_type, target) in earning_mappings.items():
+                if b_idx < len(row) and row[b_idx] is not None:
+                    try:
+                        val = float(row[b_idx])
+                    except:
+                        val = 0.0
+                    
+                    if val > 0:
+                        header = headers_row[b_idx]
+                        if header:
+                            h_clean = target 
+                            if h_clean in conceptos_vistos:
+                                prev_header, prev_val = conceptos_vistos[h_clean]
+                                period_val = str(row[idx_periodo]).strip() if idx_periodo is not None and idx_periodo < len(row) and row[idx_periodo] is not None else ""
+                                detail_msg = f"Concepto '{header}' (mapeado a '{target}') duplicado con montos ${prev_val:,.0f} y ${val:,.0f}"
+                                cursor.execute("""
+                                    INSERT OR IGNORE INTO alertas_auditoria (rut, contrato, periodo, tipo_alerta, detalle) VALUES (?, ?, ?, ?, ?)
+                                """, (rut, contrato, period_val, "Concepto Duplicado", detail_msg))
+                            else:
+                                conceptos_vistos[h_clean] = (header, val)
+                    
+                    if earn_type == "imponible":
+                        if target == "bono_descanso": bono_desc += val
+                        elif target == "bono_feriado": bono_feri += val
+                        elif target == "bono_responsabilidad": bono_resp += val
+                        elif target == "bono_gestion": bono_gest += val
+                        elif target == "bono_permanencia": bono_perm += val
+                        elif target == "bono_incentivo": bono_inc += val
+                        elif target == "diferencia_gratificacion": diferencia_gratificacion += val
+                    elif earn_type == "non_imponible":
+                        if target == "colacion": colacion += val
+                        elif target == "movilizacion": movilizacion += val
+                        elif target == "pasajes": pasajes += val
+                        elif target == "traslados": traslados += val
+                        elif target == "bono_estudios": bono_estudios += val
+                        elif target == "bono_fallecimiento": bono_fallecimiento += val
+
+            # Audit for unmapped columns with values > 0
+            for u_idx in unmapped_indices:
+                if u_idx < len(row) and row[u_idx] is not None:
+                    try:
+                        val = float(row[u_idx])
+                    except:
+                        val = 0.0
+                    
+                    if val > 0:
+                        header = headers_row[u_idx]
+                        period_val = str(row[idx_periodo]).strip() if idx_periodo is not None and idx_periodo < len(row) and row[idx_periodo] is not None else ""
+                        if not period_val:
+                            # Deduce period from file name if missing
+                            fname_lower = os.path.basename(filepath).lower()
+                            if "enero" in fname_lower: period_val = "2026-01"
+                            elif "febrero" in fname_lower: period_val = "2026-02"
+                            elif "marzo" in fname_lower: period_val = "2026-03"
+                            elif "abril" in fname_lower: period_val = "2026-04"
+                            elif "mayo" in fname_lower: period_val = "2026-05"
+                            elif "junio" in fname_lower: period_val = "2026-06"
+                            else:
+                                for key_p in ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06']:
+                                    if key_p in fname_lower:
+                                        period_val = key_p
+                                        break
+                            if not period_val:
+                                period_val = "2026-06" if "junio" in fname_lower else "2026-05"
+                                
+                        detail_msg = f"Concepto no mapeado '{header}' detectado con monto ${val:,.0f}."
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO alertas_auditoria (rut, contrato, periodo, tipo_alerta, detalle) VALUES (?, ?, ?, ?, ?)
+                        """, (rut, contrato, period_val, "Concepto No Mapeado", detail_msg))
+
+            gratificacion = float(row[idx_grat]) if idx_grat is not None and row[idx_grat] is not None else 0.0
+            apvi = float(row[idx_apvi]) if idx_apvi is not None and row[idx_apvi] is not None else 0.0
+            
+            periodo = str(row[idx_periodo]).strip() if idx_periodo is not None and row[idx_periodo] is not None else ""
+            if not periodo:
+                # Deduce period from file name if missing
+                fname_lower = os.path.basename(filepath).lower()
+                if "enero" in fname_lower: periodo = "2026-01"
+                elif "febrero" in fname_lower: periodo = "2026-02"
+                elif "marzo" in fname_lower: periodo = "2026-03"
+                elif "abril" in fname_lower: periodo = "2026-04"
+                elif "mayo" in fname_lower: periodo = "2026-05"
+                elif "junio" in fname_lower: periodo = "2026-06"
+                else:
+                    for key_p in ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06']:
+                        if key_p in fname_lower:
+                            periodo = key_p
+                            break
+                if not periodo:
+                    periodo = "2026-06" if "junio" in fname_lower else "2026-05"
+
+            licencia_dias = float(row[idx_licencia_dias]) if idx_licencia_dias is not None and idx_licencia_dias < len(row) and row[idx_licencia_dias] is not None else 0.0
+
+            anticipo_val = float(row[idx_anticipo]) if idx_anticipo is not None and idx_anticipo < len(row) and row[idx_anticipo] is not None else 0.0
+            ccaf_credito_val = float(row[idx_ccaf_credito]) if idx_ccaf_credito is not None and idx_ccaf_credito < len(row) and row[idx_ccaf_credito] is not None else 0.0
+            ccaf_prestamo_val = float(row[idx_ccaf_prestamo]) if idx_ccaf_prestamo is not None and idx_ccaf_prestamo < len(row) and row[idx_ccaf_prestamo] is not None else 0.0
+            retencion_judicial_val = float(row[idx_retencion_judicial]) if idx_retencion_judicial is not None and idx_retencion_judicial < len(row) and row[idx_retencion_judicial] is not None else 0.0
+            prestamos_empresa_val = float(row[idx_prestamos_empresa]) if idx_prestamos_empresa is not None and idx_prestamos_empresa < len(row) and row[idx_prestamos_empresa] is not None else 0.0
+            seguro_complementario_val = float(row[idx_seguro_complementario]) if idx_seguro_complementario is not None and idx_seguro_complementario < len(row) and row[idx_seguro_complementario] is not None else 0.0
+            falp_val = float(row[idx_falp]) if idx_falp is not None and idx_falp < len(row) and row[idx_falp] is not None else 0.0
+            ahorro_afp_val = float(row[idx_ahorro_afp]) if idx_ahorro_afp is not None and idx_ahorro_afp < len(row) and row[idx_ahorro_afp] is not None else 0.0
+
+            obs_val = ""
+            # Load observations if present
+            if len(row) > 100 and row[100]:
+                obs_val = str(row[100]).strip()
+            elif len(row) > 99 and row[99]:
+                obs_val = str(row[99]).strip()
+
+            just_json_str = "{}"
+            period_extra = all_extra_data.get(periodo, {})
+            if period_extra:
+                extra = period_extra.get((rut, contrato), {})
+                if extra:
+                    justs = extra.get("justificaciones", {}).copy()
+                    just_json_str = json.dumps(justs, ensure_ascii=False)
+
+            cursor.execute("""
+            INSERT OR REPLACE INTO planilla_entradas (
+                rut, contrato, periodo, dias_trabajados, sueldo_base, bono_descanso, bono_feriado,
+                bono_incentivo, bono_responsabilidad, bono_gestion, bono_permanencia, gratificacion, diferencia_gratificacion,
+                colacion, movilizacion, pasajes, traslados, bono_estudios, bono_fallecimiento,
+                apvi, anticipo, ccaf_credito, ccaf_prestamo, retencion_judicial, prestamos_empresa, seguro_complementario, falp, ahorro_afp,
+                licencia_dias, justificaciones_json, observaciones, hash_origen, timestamp_carga
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                rut, contrato, periodo, dias_trabajados, sueldo_base, bono_desc, bono_feri,
+                bono_inc, bono_resp, bono_gest, bono_perm, gratificacion, diferencia_gratificacion,
+                colacion, movilizacion, pasajes, traslados, bono_estudios, bono_fallecimiento,
+                apvi, anticipo_val, ccaf_credito_val, ccaf_prestamo_val, retencion_judicial_val, prestamos_empresa_val, seguro_complementario_val, falp_val, ahorro_afp_val,
+                licencia_dias, just_json_str, obs_val, file_hash, timestamp_now
+            ))
+            count += 1
+        total_count += count
+        print(f"Loaded {count} inputs from {os.path.basename(filepath)}")
+
+    conn.commit()
+    conn.close()
+    print(f"Total inputs loaded into planilla_entradas: {total_count}")
+
 def load_rex_comparisons(custom_files=None):
     print("Loading Rex+ payroll comparisons...")
     if custom_files:
@@ -822,13 +1464,32 @@ def load_rex_comparisons(custom_files=None):
     for filepath in files:
         print(f"Parsing: {os.path.basename(filepath)}")
         wb = openpyxl.load_workbook(filepath, data_only=True)
-        if 'Detalle' not in wb.sheetnames:
-            print(f"Skipping {filepath} - no 'Detalle' sheet.")
+        
+        # Determine the sheet name: 'Detalle' or monthly sheets ('06-2026', '05-2026', etc.)
+        sheetname = None
+        for s in ['Detalle', '06-2026', '05-2026', '04-2026', '03-2026', '02-2026', '01-2026', 'Sheet1']:
+            if s in wb.sheetnames:
+                sheetname = s
+                break
+        if not sheetname:
+            print(f"Skipping {filepath} - no valid sheet found ('Detalle' or monthly sheet).")
             continue
-        sheet = wb['Detalle']
+            
+        sheet = wb[sheetname]
 
-        # Row 5 has headers
-        headers_row = list(sheet.iter_rows(min_row=5, max_row=5, values_only=True))[0]
+        # Row 5 or 6 has headers. Let's find it dynamically
+        headers_row = None
+        data_start_row = 6
+        for r_idx in [5, 6]:
+            row_vals = list(sheet.iter_rows(min_row=r_idx, max_row=r_idx, values_only=True))[0]
+            if any(isinstance(val, str) and 'rut' in val.lower() for val in row_vals if val):
+                headers_row = row_vals
+                data_start_row = r_idx + 1
+                break
+        if headers_row is None:
+            # Fallback
+            headers_row = list(sheet.iter_rows(min_row=5, max_row=5, values_only=True))[0]
+            data_start_row = 6
         
         def clean(s):
             if not s:
@@ -915,6 +1576,8 @@ def load_rex_comparisons(custom_files=None):
         idx_ias_anos_servicio_1 = get_col_idx(["indemnizacion de tiempo servido", "indemnizacion tiempo servido", "indemnización de tiempo servido"])
         idx_ias_anos_servicio_2 = get_col_idx(["indemnizacion legal", "indemnización legal"])
         idx_ias_aviso = get_col_idx(["ias mes de aviso", "mes de aviso"])
+        idx_ias_anticipo_finiquito = get_col_idx(["anticipo de finiquito", "anticipofiniquito"])
+        idx_ias_seguro_cesantia = get_col_idx(["seguro cesantia recuperado", "seguro cesantía recuperado"])
 
         # Role and Location columns for historical mappings
         idx_sede = get_col_idx(["sede"])
@@ -966,6 +1629,9 @@ def load_rex_comparisons(custom_files=None):
                         earning_mappings[idx] = ("non_imponible", "bono_estudios")
                 else:
                     # It is imponible! (unless it's the gratificacion itself, which we parse separately)
+                    if "diferencia" in h_clean and ("gratificacion" in h_clean or "gratificacin" in h_clean):
+                        earning_mappings[idx] = ("imponible", "diferencia_gratificacion")
+                        continue
                     if h_clean == "gratificacion" or h_clean == "gratificacin":
                         continue
                     # Classify into specific imponibles
@@ -984,16 +1650,16 @@ def load_rex_comparisons(custom_files=None):
                         earning_mappings[idx] = ("imponible", "bono_incentivo")
 
         count = 0
-        # Data starts from Row 6
-        for row in sheet.iter_rows(min_row=6, values_only=True):
-            if not row or len(row) <= max(idx_rut, idx_contrato) or not row[idx_rut]:
+        # Data starts from Row data_start_row
+        for row in sheet.iter_rows(min_row=data_start_row, values_only=True):
+            if not row or idx_rut is None or len(row) <= idx_rut or not row[idx_rut]:
                 continue
 
             rut = clean_rut(row[idx_rut])
-            contrato = int(row[idx_contrato]) if row[idx_contrato] is not None else 1
-            nombre = row[idx_nombre] if idx_nombre is not None else ""
-            dias_trabajados = int(row[idx_dias]) if idx_dias is not None and row[idx_dias] is not None else 30
-            sueldo_base = row[idx_sueldo_base] if idx_sueldo_base is not None and row[idx_sueldo_base] is not None else 0.0
+            contrato = int(row[idx_contrato]) if idx_contrato is not None and idx_contrato < len(row) and row[idx_contrato] is not None else 1
+            nombre = row[idx_nombre] if idx_nombre is not None and idx_nombre < len(row) else ""
+            dias_trabajados = int(row[idx_dias]) if idx_dias is not None and idx_dias < len(row) and row[idx_dias] is not None else 30
+            sueldo_base = float(row[idx_sueldo_base]) if idx_sueldo_base is not None and idx_sueldo_base < len(row) and row[idx_sueldo_base] is not None else 0.0
             
             # Initialize earnings
             bono_desc = 0.0
@@ -1002,6 +1668,7 @@ def load_rex_comparisons(custom_files=None):
             bono_gest = 0.0
             bono_perm = 0.0
             bono_inc = 0.0
+            diferencia_gratificacion = 0.0
             colacion = 0.0
             movilizacion = 0.0
             pasajes = 0.0
@@ -1009,13 +1676,29 @@ def load_rex_comparisons(custom_files=None):
             bono_fallecimiento = 0.0
             bono_estudios = 0.0
             
-            # Accumulate dynamically mapped earnings
+            # Accumulate dynamically mapped earnings and audit for duplicates
+            conceptos_vistos = {}
             for b_idx, (earn_type, target) in earning_mappings.items():
                 if b_idx < len(row) and row[b_idx] is not None:
                     try:
                         val = float(row[b_idx])
                     except:
                         val = 0.0
+                    
+                    if val > 0:
+                        header = headers_row[b_idx]
+                        if header:
+                            h_clean = clean(header)
+                            if h_clean in conceptos_vistos:
+                                prev_header, prev_val = conceptos_vistos[h_clean]
+                                period_val = str(row[idx_periodo]).strip() if idx_periodo is not None and idx_periodo < len(row) and row[idx_periodo] is not None else ""
+                                detail_msg = f"Concepto '{header}' duplicado con montos ${prev_val:,.0f} y ${val:,.0f}"
+                                cursor.execute(
+                                    "                                    INSERT OR IGNORE INTO alertas_auditoria (rut, contrato, periodo, tipo_alerta, detalle) VALUES (?, ?, ?, ?, ?)",
+                                    (rut, contrato, period_val, "Concepto Duplicado", detail_msg)
+                                )
+                            else:
+                                conceptos_vistos[h_clean] = (header, val)
                     
                     if earn_type == "imponible":
                         if target == "bono_descanso": bono_desc += val
@@ -1024,6 +1707,7 @@ def load_rex_comparisons(custom_files=None):
                         elif target == "bono_gestion": bono_gest += val
                         elif target == "bono_permanencia": bono_perm += val
                         elif target == "bono_incentivo": bono_inc += val
+                        elif target == "diferencia_gratificacion": diferencia_gratificacion += val
                     elif earn_type == "non_imponible":
                         if target == "colacion": colacion += val
                         elif target == "movilizacion": movilizacion += val
@@ -1070,6 +1754,9 @@ def load_rex_comparisons(custom_files=None):
             ias_anos_servicio_2 = float(row[idx_ias_anos_servicio_2]) if idx_ias_anos_servicio_2 is not None and idx_ias_anos_servicio_2 < len(row) and row[idx_ias_anos_servicio_2] is not None else 0.0
             ias_anos_servicio = ias_anos_servicio_1 + ias_anos_servicio_2
             ias_aviso = float(row[idx_ias_aviso]) if idx_ias_aviso is not None and idx_ias_aviso < len(row) and row[idx_ias_aviso] is not None else 0.0
+            ias_anticipo_finiquito = float(row[idx_ias_anticipo_finiquito]) if idx_ias_anticipo_finiquito is not None and idx_ias_anticipo_finiquito < len(row) and row[idx_ias_anticipo_finiquito] is not None else 0.0
+            ias_seguro_cesantia_recuperado = float(row[idx_ias_seguro_cesantia]) if idx_ias_seguro_cesantia is not None and idx_ias_seguro_cesantia < len(row) and row[idx_ias_seguro_cesantia] is not None else 0.0
+
 
             # Sede, Cargo, CC values
             sede_val = row[idx_sede] if idx_sede is not None and idx_sede < len(row) and row[idx_sede] is not None else ""
@@ -1234,6 +1921,92 @@ def fill_missing_employees():
         full_base = round(row["comp_base"] * 30.0 / row["dias_trabajados"])
         cursor.execute("UPDATE empleados SET sueldo_base = ? WHERE rut = ? AND contrato = ?", (full_base, row["rut"], row["contrato"]))
         
+    # Update sueldo_base in empleados based on the latest rex_comparisons where sueldo_base > 0
+    cursor.execute("""
+        SELECT r.rut, r.contrato, r.sueldo_base, r.dias_trabajados
+        FROM rex_comparisons r
+        JOIN (
+            SELECT rut, contrato, MAX(periodo) as max_periodo
+            FROM rex_comparisons
+            WHERE sueldo_base > 0
+            GROUP BY rut, contrato
+        ) latest ON r.rut = latest.rut AND r.contrato = latest.contrato AND r.periodo = latest.max_periodo
+        WHERE r.sueldo_base > 0
+    """)
+    latest_sueldos = cursor.fetchall()
+    updated_sueldo_count = 0
+    for rut, contrato, sb, dias in latest_sueldos:
+        if dias and dias > 0 and dias < 30:
+            sb = round(sb * 30.0 / dias)
+        cursor.execute("""
+            UPDATE empleados
+            SET sueldo_base = ?
+            WHERE rut = ? AND contrato = ? AND (sueldo_base != ? OR sueldo_base IS NULL)
+        """, (sb, rut, contrato, sb))
+        updated_sueldo_count += cursor.rowcount
+    print(f"[Migration] Updated sueldo_base for {updated_sueldo_count} employees based on latest comparisons.")
+
+    # Parse and register the Nomina Finiquitos Excel file
+    try:
+        import glob
+        files = glob.glob(os.path.join(BASE_DIR, "Nomina Finiquitos *.xlsx"))
+        for filepath in files:
+            print(f"Parsing Nomina Finiquitos file: {os.path.basename(filepath)}")
+            wb = openpyxl.load_workbook(filepath, data_only=True)
+            if 'Detalle' not in wb.sheetnames:
+                print(f"Skipping {filepath} - no 'Detalle' sheet.")
+                continue
+            sheet = wb['Detalle']
+            
+            # Find headers "Número ID", "CONTRATO"
+            first_row = [str(cell.value).strip() if cell.value is not None else "" for cell in sheet[1]]
+            idx_rut = next((i for i, h in enumerate(first_row) if 'número id' in h.lower() or 'numero id' in h.lower()), None)
+            idx_contrato = next((i for i, h in enumerate(first_row) if 'contrato' in h.lower()), None)
+            
+            if idx_rut is None or idx_contrato is None:
+                print(f"Error: Could not find 'Número ID' or 'CONTRATO' columns in {filepath}.")
+                continue
+                
+            count_f = 0
+            for r_idx in range(2, sheet.max_row + 1):
+                rut_val = sheet.cell(row=r_idx, column=idx_rut+1).value
+                contrato_val = sheet.cell(row=r_idx, column=idx_contrato+1).value
+                if not rut_val:
+                    continue
+                
+                rut_clean = clean_rut(rut_val)
+                contrato_num = int(contrato_val) if contrato_val is not None else 1
+                
+                # Get the fecha_termino from rex_comparisons for June 2026
+                cursor.execute("""
+                    SELECT fecha_termino FROM rex_comparisons 
+                    WHERE rut = ? AND contrato = ? AND periodo = '2026-06'
+                """, (rut_clean, contrato_num))
+                res = cursor.fetchone()
+                fin_date = res[0] if res else None
+                
+                # If not found, use fecha_termino_contrato from empleados
+                if not fin_date:
+                    cursor.execute("""
+                        SELECT fecha_termino_contrato FROM empleados 
+                        WHERE rut = ? AND contrato = ?
+                    """, (rut_clean, contrato_num))
+                    res2 = cursor.fetchone()
+                    fin_date = res2[0] if res2 else "2026-06-30"
+                    
+                if not fin_date or fin_date == '':
+                    fin_date = "2026-06-30"
+                    
+                cursor.execute("""
+                    UPDATE empleados
+                    SET fecha_finiquito = ?
+                    WHERE rut = ? AND contrato = ?
+                """, (fin_date, rut_clean, contrato_num))
+                count_f += 1
+            print(f"[Migration] Registered {count_f} finiquitos from {os.path.basename(filepath)}.")
+    except Exception as ex:
+        print(f"Error loading Nomina Finiquitos file: {ex}")
+
     conn.commit()
     conn.close()
     print("Missing historical employees populated and existing employees' details updated.")
@@ -1356,6 +2129,7 @@ def setup():
     load_cargos_mapping()
     load_proyectos_mapping()
     load_rex_comparisons()
+    load_planilla_entradas()
     fill_missing_employees()
     load_vacations_report_from_excel()
     sync_vacaciones_ajustes_from_report()
@@ -1379,5 +2153,29 @@ def setup():
 
     print("Database setup complete.")
 
+def get_audit_alerts(periodo=None):
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    if periodo:
+        cursor.execute("""
+            SELECT a.*, e.nombre 
+            FROM alertas_auditoria a
+            LEFT JOIN empleados e ON a.rut = e.rut AND a.contrato = e.contrato
+            WHERE a.periodo = ?
+            ORDER BY a.rut, a.tipo_alerta
+        """, (periodo,))
+    else:
+        cursor.execute("""
+            SELECT a.*, e.nombre 
+            FROM alertas_auditoria a
+            LEFT JOIN empleados e ON a.rut = e.rut AND a.contrato = e.contrato
+            ORDER BY a.periodo DESC, a.rut, a.tipo_alerta
+        """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 if __name__ == "__main__":
     setup()
+

@@ -239,7 +239,7 @@ def test_projection_and_finiquitos():
     target_cargo = 'MAESTRO SEGUNDA GEOSINTETICOS'
     finiquitate_count = 3
     
-    cursor.execute("SELECT rut, nombre FROM empleados WHERE id_obra = ? AND cargo = ? AND (fecha_finiquito IS NULL OR fecha_finiquito = '') LIMIT ?", (id_obra, target_cargo, finiquitate_count))
+    cursor.execute("SELECT rut, contrato, nombre FROM empleados WHERE id_obra = ? AND cargo = ? AND (fecha_finiquito IS NULL OR fecha_finiquito = '') LIMIT ?", (id_obra, target_cargo, finiquitate_count))
     to_finiquitate = cursor.fetchall()
     finiquitate_ruts = [r[0] for r in to_finiquitate]
     print(f"RUTs to finiquitate: {finiquitate_ruts}")
@@ -254,10 +254,10 @@ def test_projection_and_finiquitos():
     
     # Verify that they are marked as finiquitados
     for r in to_finiquitate:
-        cursor.execute("SELECT fecha_finiquito, fecha_termino_contrato FROM empleados WHERE rut = ?", (r[0],))
+        cursor.execute("SELECT fecha_finiquito, fecha_termino_contrato FROM empleados WHERE rut = ? AND contrato = ?", (r[0], r[1]))
         emp_row = cursor.fetchone()
-        assert emp_row[0] == fecha_termino, f"fecha_finiquito not set correctly for {r['nombre']}"
-        assert emp_row[1] == fecha_termino, f"fecha_termino_contrato not set correctly for {r['nombre']}"
+        assert emp_row[0] == fecha_termino, f"fecha_finiquito not set correctly for {r[2]}"
+        assert emp_row[1] == fecha_termino, f"fecha_termino_contrato not set correctly for {r[2]}"
         
     print("Mutation verified successfully. All target workers are marked as finiquitados.")
     

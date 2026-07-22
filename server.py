@@ -2,15 +2,27 @@ import http.server
 import socketserver
 import json
 import sqlite3
+import re
 
 # Monkey-patch sqlite3.connect to automatically use uri=True and nolock=1 to prevent WSL2 bind-mount disk I/O errors
 _original_connect = sqlite3.connect
 def _custom_connect(database, *args, **kwargs):
     if isinstance(database, str) and (database.endswith('.db') or 'remuneraciones.db' in database) and not database.startswith('file:'):
         db_path = database.replace('\\', '/')
-        database = f"file:{db_path}?nolock=1"
+        import sys
+        if sys.platform == 'win32':
+            database = f"file:{db_path}?nolock=1"
+        else:
+            database = f"file:{db_path}?vfs=unix-none"
         kwargs['uri'] = True
-    return _original_connect(database, *args, **kwargs)
+    conn = _original_connect(database, *args, **kwargs)
+    try:
+        conn.execute("PRAGMA busy_timeout = 10000;")
+        conn.execute("PRAGMA journal_mode = MEMORY;")
+        conn.execute("PRAGMA synchronous = OFF;")
+    except:
+        pass
+    return conn
 sqlite3.connect = _custom_connect
 
 import urllib.parse
@@ -130,8 +142,12 @@ def run_calculations_and_seed_db():
     cursor = conn.cursor()
 
     # Take a snapshot of previous calculations before overwriting
-    cursor.execute("SELECT COUNT(*) FROM liquidaciones")
-    has_rows = cursor.fetchone()[0]
+    has_rows = 0
+    try:
+        cursor.execute("SELECT COUNT(*) FROM liquidaciones")
+        has_rows = cursor.fetchone()[0]
+    except sqlite3.OperationalError:
+        pass
     if has_rows > 0:
         print("[*] Archiving current calculations to liquidaciones_snapshots...")
         cursor.execute("""
@@ -192,8 +208,13 @@ def run_calculations_and_seed_db():
         """)
         print("[OK] Snapshot archived.")
 
-    # Clear previous liquidations
-    cursor.execute("DELETE FROM liquidaciones")
+    # Clear previous liquidations, initialize tables if missing
+    try:
+        cursor.execute("DELETE FROM liquidaciones")
+    except sqlite3.OperationalError:
+        import database
+        database.init_db()
+        cursor.execute("DELETE FROM liquidaciones")
 
     # Get distinct periods from rex_comparisons
     cursor.execute("SELECT DISTINCT periodo FROM rex_comparisons ORDER BY periodo ASC")
@@ -255,10 +276,17 @@ def run_calculations_and_seed_db():
         count = 0
         for r in rows_sorted:
             employee = dict(r)
-            if r["rex_dias"] > 0:
-                employee["sueldo_base"] = round(r["rex_sueldo_base"] * 30.0 / r["rex_dias"])
+            if r["sueldo_base"] and r["sueldo_base"] > 0:
+                if r["rex_dias"] > 0:
+                    employee["sueldo_base"] = round(r["sueldo_base"] * 30.0 / r["rex_dias"])
+                else:
+                    employee["sueldo_base"] = r["sueldo_base"]
             else:
-                employee["sueldo_base"] = r["rex_sueldo_base"]
+                base_sb = r["rex_sueldo_base"]
+                if r["rex_dias"] > 0:
+                    employee["sueldo_base"] = round(base_sb * 30.0 / r["rex_dias"])
+                else:
+                    employee["sueldo_base"] = base_sb
                 
             if r["rex_afp_name"]:
                 employee["afp"] = r["rex_afp_name"]
@@ -277,9 +305,46 @@ def run_calculations_and_seed_db():
             if rut not in accumulated_data:
                 accumulated_data[rut] = {"tributable_base": 0.0, "impuesto_paid": 0.0}
 
+            # Query the imponible of the latest period before current period where the worker had no medical leave (licencia_dias == 0)
+            cursor.execute("""
+                SELECT total_imponible 
+                FROM rex_comparisons 
+                WHERE rut = ? AND periodo < ? AND total_imponible > 0 AND (licencia_dias IS NULL OR licencia_dias = 0)
+                ORDER BY periodo DESC LIMIT 1
+            """, (rut, period))
+            prev_imps = [row_imp[0] for row_imp in cursor.fetchall() if row_imp[0] is not None]
+            if not prev_imps:
+                cursor.execute("""
+                    SELECT total_imponible 
+                    FROM liquidaciones 
+                    WHERE rut = ? AND periodo < ? AND total_imponible > 0 AND (licencia_dias IS NULL OR licencia_dias = 0)
+                    ORDER BY periodo DESC LIMIT 1
+                """, (rut, period))
+                prev_imps = [row_imp[0] for row_imp in cursor.fetchall() if row_imp[0] is not None]
+            
+            # If contract started in the current or previous month, do not use partial previous imponible
+            is_new_hire = False
+            start_date_str = employee.get("fecha_inicio_contrato", "")
+            if start_date_str and len(start_date_str) >= 7:
+                start_period = start_date_str[:7]
+                try:
+                    yr = int(period[:4])
+                    mo = int(period[5:7])
+                    if mo == 1:
+                        prev_period = f"{yr-1:04d}-12"
+                    else:
+                        prev_period = f"{yr:04d}-{mo-1:02d}"
+                    if start_period == period or start_period == prev_period:
+                        is_new_hire = True
+                except:
+                    pass
+            
+            avg_imponible = prev_imps[0] if (prev_imps and not is_new_hire) else (employee.get("sueldo_base", 0) or 0)
+
             inputs = {
                 "dias_trabajados": r["rex_dias"],
                 "licencia_dias": r["rex_licencia_dias"],
+                "avg_imponible_3months": avg_imponible,
                 "horas_extras_qty": 0,
                 "bono_descanso": r["rex_bono_desc"],
                 "bono_feriado": r["rex_bono_feri"],
@@ -303,13 +368,10 @@ def run_calculations_and_seed_db():
                 "falp": r["rex_falp"],
                 "prev_tributable_base": accumulated_data[rut]["tributable_base"],
                 "prev_impuesto_paid": accumulated_data[rut]["impuesto_paid"],
-                "gratificacion": r["rex_grat"],
-                "descuento_afp": r["rex_afp"],
-                "descuento_salud_total": r["rex_salud"],
-                "descuento_afc": r["rex_afc_worker"],
                 "ias_vacaciones": r["rex_ias_vacaciones"],
                 "ias_anos_servicio": r["rex_ias_anos_servicio"],
-                "ias_aviso": r["rex_ias_aviso"]
+                "ias_aviso": r["rex_ias_aviso"],
+                "observaciones": employee.get("observaciones") or employee.get("rex_observaciones") or "",
             }
 
             res = calculate_liquidation(employee, inputs, params)
@@ -352,6 +414,43 @@ def run_calculations_and_seed_db():
     conn.commit()
     conn.close()
     print(f"Database seeded with {total_count} historical liquidations successfully!")
+    check_integrity_system()
+
+
+def check_integrity_system():
+    print("Running system integrity audit check...")
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # 1. Detect discrepancies where absolute cost difference > 500 or absolute net difference > 500 (only for currently active employees)
+    cursor.execute("""
+        SELECT k.rut, k.contrato, k.periodo, k.diff_costo, k.diff_alcance 
+        FROM kpi_desviaciones_mensuales k
+        JOIN empleados e ON k.rut = e.rut AND k.contrato = e.contrato
+        WHERE (e.fecha_finiquito IS NULL OR e.fecha_finiquito = '')
+          AND (ABS(k.diff_costo) > 500 OR ABS(k.diff_alcance) > 500)
+    """)
+    discrepancies = cursor.fetchall()
+    
+    for r in discrepancies:
+        rut, contrato, periodo, diff_costo, diff_alcance = r
+        
+        # Idempotent check: see if there is already an active (unresolved) alert for this worker, contract and period
+        cursor.execute("""
+            SELECT id FROM logs_alertas 
+            WHERE rut = ? AND contrato = ? AND leida = 0 AND periodos_afectados LIKE ?
+        """, (rut, contrato, f'%"{periodo}"%'))
+        
+        if not cursor.fetchone():
+            desc = f"Discrepancia detectada en periodo {periodo}. Diferencia Costo Empresa: ${diff_costo:,} CLP. Diferencia Alcance Líquido: ${diff_alcance:,} CLP."
+            cursor.execute("""
+                INSERT INTO logs_alertas (rut, contrato, tipo_alerta, descripcion, periodos_afectados, deriva_acumulada)
+                VALUES (?, ?, 'DESVIACION_COSTO', ?, ?, ?)
+            """, (rut, contrato, desc, json.dumps([periodo]), diff_costo))
+            
+    conn.commit()
+    conn.close()
+    print("System integrity audit check finished.")
 
 
 class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
@@ -416,6 +515,10 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_json(self.get_periods())
         elif path == "/api/history":
             self.send_json(self.get_history())
+        elif path == "/api/audit/alerts":
+            self.send_json(self.get_audit_alerts(periodo))
+        elif path == "/api/month-comparison":
+            self.send_json(self.get_month_comparison(periodo))
         elif path == "/api/process-comparison":
             base_run = query_params.get("base_run", [None])[0]
             compare_run = query_params.get("compare_run", [None])[0]
@@ -511,6 +614,8 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
 
 
     def do_POST(self):
+        import database
+        import calculator
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
         
@@ -1014,6 +1119,20 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_error(400, f"Error deleting finiquito: {str(e)}")
                 
+        elif path == "/api/run-calculations":
+            try:
+                import calculator
+                import database
+                importlib.reload(calculator)
+                importlib.reload(database)
+                database.setup()
+                run_calculations_and_seed_db()
+                self.send_json({"status": "success", "message": "Proceso de cálculo de remuneraciones y liquidaciones completado exitosamente."})
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                self.send_error(500, f"Error al ejecutar el proceso de cálculo: {str(e)}")
+                
         elif path == "/api/upload":
             try:
                 content_type = self.headers.get('Content-Type')
@@ -1061,6 +1180,9 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
                             if "empleado" in fname.lower():
                                 print(f"[*] Importando nómina de empleados desde: {fname}")
                                 database.load_employees_from_excel([(file_path, "Web Upload")])
+                            elif any(word in fname.lower() for word in ["planilla general", "entrada", "movimiento", "planilla_general", "calulo", "calculo", "planilla base"]):
+                                print(f"[*] Importando Planilla General de Entradas desde: {fname}")
+                                database.load_planilla_entradas([file_path])
                             else:
                                 print(f"[*] Importando planillas de proceso Rex+ desde: {fname}")
                                 database.load_rex_comparisons([file_path])
@@ -1095,6 +1217,13 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
         else:
             self.send_error(404, f"File {filename} not found")
 
+    def get_audit_alerts(self, periodo):
+        try:
+            return database.get_audit_alerts(periodo)
+        except Exception as e:
+            print(f"Error getting audit alerts: {e}")
+            return []
+
     def get_periods(self):
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -1102,6 +1231,365 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
         periods = [r[0] for r in cursor.fetchall() if r[0]]
         conn.close()
         return periods
+
+    def get_month_comparison(self, periodo):
+        
+        try:
+            yr = int(periodo[:4])
+            mo = int(periodo[5:7])
+            if mo == 1:
+                periodo_anterior = f"{yr-1:04d}-12"
+            else:
+                periodo_anterior = f"{yr:04d}-{mo-1:02d}"
+        except Exception as e:
+            periodo_anterior = "2026-05"
+            
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Check if there are calculated liquidations for the current period
+        cursor.execute("SELECT COUNT(*) FROM liquidaciones WHERE periodo = ?", (periodo,))
+        has_liquidaciones = cursor.fetchone()[0] > 0
+        
+        if has_liquidaciones:
+            # 1. Fetch current month liquidations
+            cursor.execute("""
+                SELECT l.*, r.nombre, r.afp as afp_name, r.isapre as isapre_name, r.centro_costo, r.cargo, r.sede,
+                       e.cotizacion_uf, e.cotizacion_pesos
+                FROM liquidaciones l
+                JOIN rex_comparisons r ON l.rut = r.rut AND l.contrato = r.contrato AND l.periodo = r.periodo
+                LEFT JOIN empleados e ON l.rut = e.rut AND l.contrato = e.contrato
+                WHERE l.periodo = ?
+            """, (periodo,))
+            rows_act = [dict(r) for r in cursor.fetchall()]
+            
+            # 2. Fetch previous month liquidations
+            cursor.execute("""
+                SELECT l.*, r.nombre, r.afp as afp_name, r.isapre as isapre_name, r.centro_costo, r.cargo, r.sede,
+                       e.cotizacion_uf, e.cotizacion_pesos
+                FROM liquidaciones l
+                JOIN rex_comparisons r ON l.rut = r.rut AND l.contrato = r.contrato AND l.periodo = r.periodo
+                LEFT JOIN empleados e ON l.rut = e.rut AND l.contrato = e.contrato
+                WHERE l.periodo = ?
+            """, (periodo_anterior,))
+            all_ant_details = { (r["rut"], r["contrato"]): dict(r) for r in cursor.fetchall() }
+        else:
+            # FALLBACK: Use rex_comparisons directly for both months when ERP data is not yet loaded
+            cursor.execute("""
+                SELECT r.*, 
+                       r.cotizacion_afp as descuento_afp, 
+                       r.cotizacion_salud as descuento_salud_total,
+                       r.seguro_cesantia_trab as descuento_afc, 
+                       r.impuesto as descuento_impuesto,
+                       r.afp as afp_name,
+                       r.isapre as isapre_name,
+                       e.cotizacion_uf, e.cotizacion_pesos
+                FROM rex_comparisons r
+                LEFT JOIN empleados e ON r.rut = e.rut AND r.contrato = e.contrato
+                WHERE r.periodo = ?
+            """, (periodo,))
+            rows_act = [dict(r) for r in cursor.fetchall()]
+            
+            cursor.execute("""
+                SELECT r.*, 
+                       r.cotizacion_afp as descuento_afp, 
+                       r.cotizacion_salud as descuento_salud_total,
+                       r.seguro_cesantia_trab as descuento_afc, 
+                       r.impuesto as descuento_impuesto,
+                       r.afp as afp_name,
+                       r.isapre as isapre_name,
+                       e.cotizacion_uf, e.cotizacion_pesos
+                FROM rex_comparisons r
+                LEFT JOIN empleados e ON r.rut = e.rut AND r.contrato = e.contrato
+                WHERE r.periodo = ?
+            """, (periodo_anterior,))
+            all_ant_details = { (r["rut"], r["contrato"]): dict(r) for r in cursor.fetchall() }
+        
+        comparison_list = []
+        active_ruts_act = set()
+        
+        # Process current month employees
+        for r_act in rows_act:
+            key = (r_act["rut"], r_act["contrato"])
+            active_ruts_act.add(key)
+            
+            r_ant = all_ant_details.get(key)
+            
+            # Sum of bonuses
+            bonos_act_val = (
+                (r_act.get("bono_incentivo") or 0.0) + (r_act.get("bono_gestion") or 0.0) +
+                (r_act.get("bono_permanencia") or 0.0) + (r_act.get("bono_responsabilidad") or 0.0) +
+                (r_act.get("bono_descanso") or 0.0) + (r_act.get("bono_feriado") or 0.0) +
+                (r_act.get("bono_estudios") or 0.0) + (r_act.get("bono_fallecimiento") or 0.0)
+            )
+            bonos_ant_val = (
+                (r_ant.get("bono_incentivo") or 0.0) + (r_ant.get("bono_gestion") or 0.0) +
+                (r_ant.get("bono_permanencia") or 0.0) + (r_ant.get("bono_responsabilidad") or 0.0) +
+                (r_ant.get("bono_descanso") or 0.0) + (r_ant.get("bono_feriado") or 0.0) +
+                (r_ant.get("bono_estudios") or 0.0) + (r_ant.get("bono_fallecimiento") or 0.0)
+            ) if r_ant else 0.0
+            
+            item = {
+                "rut": r_act["rut"],
+                "contrato": r_act["contrato"],
+                "nombre": r_act["nombre"],
+                "estado": "Activo" if r_ant else "Ingreso",
+                
+                # Current values
+                "cc_act": r_act["centro_costo"],
+                "cargo_act": r_act["cargo"],
+                "sede_act": r_act["sede"],
+                "dias_act": r_act["dias_trabajados"] or 0,
+                "licencias_act": r_act.get("licencia_dias") or 0.0,
+                "base_act": r_act["sueldo_base"],
+                "total_imponible_act": r_act["total_imponible"],
+                "alcance_act": r_act["alcance_liquido"],
+                "costo_act": r_act["costo_empresa"],
+                "afp_name_act": r_act["afp_name"],
+                "isapre_name_act": r_act["isapre_name"],
+                "plan_uf_act": r_act.get("cotizacion_uf") or 0.0,
+                "plan_pesos_act": r_act.get("cotizacion_pesos") or 0.0,
+                "bonos_sum_act": bonos_act_val,
+                
+                # Previous values
+                "cc_ant": r_ant["centro_costo"] if r_ant else None,
+                "cargo_ant": r_ant["cargo"] if r_ant else None,
+                "sede_ant": r_ant["sede"] if r_ant else None,
+                "dias_ant": r_ant["dias_trabajados"] if r_ant else 0,
+                "licencias_ant": r_ant.get("licencia_dias") or 0.0 if r_ant else 0.0,
+                "base_ant": r_ant["sueldo_base"] if r_ant else 0,
+                "total_imponible_ant": r_ant["total_imponible"] if r_ant else 0,
+                "alcance_ant": r_ant["alcance_liquido"] if r_ant else 0,
+                "costo_ant": r_ant["costo_empresa"] if r_ant else 0,
+                "afp_name_ant": r_ant["afp_name"] if r_ant else None,
+                "isapre_name_ant": r_ant["isapre_name"] if r_ant else None,
+                "plan_uf_ant": r_ant.get("cotizacion_uf") or 0.0 if r_ant else 0.0,
+                "plan_pesos_ant": r_ant.get("cotizacion_pesos") or 0.0 if r_ant else 0.0,
+                "bonos_sum_ant": bonos_ant_val,
+                
+                # Detailed breakdown for modal comparisons
+                "breakdown_act": {
+                    "bonos": {
+                        "incentivo": r_act.get("bono_incentivo") or 0.0,
+                        "gestion": r_act.get("bono_gestion") or 0.0,
+                        "permanencia": r_act.get("bono_permanencia") or 0.0,
+                        "responsabilidad": r_act.get("bono_responsabilidad") or 0.0,
+                        "descanso": r_act.get("bono_descanso") or 0.0,
+                        "feriado": r_act.get("bono_feriado") or 0.0,
+                        "estudios": r_act.get("bono_estudios") or 0.0,
+                        "fallecimiento": r_act.get("bono_fallecimiento") or 0.0,
+                    },
+                    "descuentos": {
+                        "afp": r_act.get("descuento_afp") or 0.0,
+                        "salud": r_act.get("descuento_salud_total") or 0.0,
+                        "afc": r_act.get("descuento_afc") or 0.0,
+                        "impuesto": r_act.get("descuento_impuesto") or 0.0,
+                    }
+                },
+                "breakdown_ant": {
+                    "bonos": {
+                        "incentivo": r_ant.get("bono_incentivo") or 0.0 if r_ant else 0.0,
+                        "gestion": r_ant.get("bono_gestion") or 0.0 if r_ant else 0.0,
+                        "permanencia": r_ant.get("bono_permanencia") or 0.0 if r_ant else 0.0,
+                        "responsabilidad": r_ant.get("bono_responsabilidad") or 0.0 if r_ant else 0.0,
+                        "descanso": r_ant.get("bono_descanso") or 0.0 if r_ant else 0.0,
+                        "feriado": r_ant.get("bono_feriado") or 0.0 if r_ant else 0.0,
+                        "estudios": r_ant.get("bono_estudios") or 0.0 if r_ant else 0.0,
+                        "fallecimiento": r_ant.get("bono_fallecimiento") or 0.0 if r_ant else 0.0,
+                    },
+                    "descuentos": {
+                        "afp": r_ant.get("descuento_afp") or 0.0 if r_ant else 0.0,
+                        "salud": r_ant.get("descuento_salud_total") or 0.0 if r_ant else 0.0,
+                        "afc": r_ant.get("descuento_afc") or 0.0 if r_ant else 0.0,
+                        "impuesto": r_ant.get("descuento_impuesto") or 0.0 if r_ant else 0.0,
+                    }
+                }
+            }
+        
+        # Process current month employees
+        for r_act in rows_act:
+            key = (r_act["rut"], r_act["contrato"])
+            active_ruts_act.add(key)
+            
+            r_ant = all_ant_details.get(key)
+            
+            item = {
+                "rut": r_act["rut"],
+                "contrato": r_act["contrato"],
+                "nombre": r_act["nombre"],
+                "estado": "Activo" if r_ant else "Ingreso",
+                
+                # Current values
+                "cc_act": r_act["centro_costo"],
+                "cargo_act": r_act["cargo"],
+                "sede_act": r_act["sede"],
+                "dias_act": r_act["dias_trabajados"],
+                "base_act": r_act["sueldo_base"],
+                "total_imponible_act": r_act["total_imponible"],
+                "alcance_act": r_act["alcance_liquido"],
+                "costo_act": r_act["costo_empresa"],
+                "afp_name_act": r_act["afp_name"],
+                "isapre_name_act": r_act["isapre_name"],
+                
+                # Previous values
+                "cc_ant": r_ant["centro_costo"] if r_ant else None,
+                "cargo_ant": r_ant["cargo"] if r_ant else None,
+                "sede_ant": r_ant["sede"] if r_ant else None,
+                "dias_ant": r_ant["dias_trabajados"] if r_ant else 0,
+                "base_ant": r_ant["sueldo_base"] if r_ant else 0,
+                "total_imponible_ant": r_ant["total_imponible"] if r_ant else 0,
+                "alcance_ant": r_ant["alcance_liquido"] if r_ant else 0,
+                "costo_ant": r_ant["costo_empresa"] if r_ant else 0,
+                "afp_name_ant": r_ant["afp_name"] if r_ant else None,
+                "isapre_name_ant": r_ant["isapre_name"] if r_ant else None,
+                
+                # Detailed breakdown for modal comparisons
+                "breakdown_act": {
+                    "bonos": {
+                        "incentivo": r_act.get("bono_incentivo") or 0.0,
+                        "gestion": r_act.get("bono_gestion") or 0.0,
+                        "permanencia": r_act.get("bono_permanencia") or 0.0,
+                        "responsabilidad": r_act.get("bono_responsabilidad") or 0.0,
+                        "descanso": r_act.get("bono_descanso") or 0.0,
+                        "feriado": r_act.get("bono_feriado") or 0.0,
+                        "estudios": r_act.get("bono_estudios") or 0.0,
+                        "fallecimiento": r_act.get("bono_fallecimiento") or 0.0,
+                    },
+                    "descuentos": {
+                        "afp": r_act.get("descuento_afp") or 0.0,
+                        "salud": r_act.get("descuento_salud_total") or 0.0,
+                        "afc": r_act.get("descuento_afc") or 0.0,
+                        "impuesto": r_act.get("descuento_impuesto") or 0.0,
+                    }
+                },
+                "breakdown_ant": {
+                    "bonos": {
+                        "incentivo": r_ant.get("bono_incentivo") or 0.0 if r_ant else 0.0,
+                        "gestion": r_ant.get("bono_gestion") or 0.0 if r_ant else 0.0,
+                        "permanencia": r_ant.get("bono_permanencia") or 0.0 if r_ant else 0.0,
+                        "responsabilidad": r_ant.get("bono_responsabilidad") or 0.0 if r_ant else 0.0,
+                        "descanso": r_ant.get("bono_descanso") or 0.0 if r_ant else 0.0,
+                        "feriado": r_ant.get("bono_feriado") or 0.0 if r_ant else 0.0,
+                        "estudios": r_ant.get("bono_estudios") or 0.0 if r_ant else 0.0,
+                        "fallecimiento": r_ant.get("bono_fallecimiento") or 0.0 if r_ant else 0.0,
+                    },
+                    "descuentos": {
+                        "afp": r_ant.get("descuento_afp") or 0.0 if r_ant else 0.0,
+                        "salud": r_ant.get("descuento_salud_total") or 0.0 if r_ant else 0.0,
+                        "afc": r_ant.get("descuento_afc") or 0.0 if r_ant else 0.0,
+                        "impuesto": r_ant.get("descuento_impuesto") or 0.0 if r_ant else 0.0,
+                    }
+                }
+            }
+            
+            # Analyze variations
+            alerts = []
+            if r_ant:
+                # 1. Salary variation checks
+                cost_diff = item["costo_act"] - item["costo_ant"]
+                cost_pct = (cost_diff / item["costo_ant"]) if item["costo_ant"] > 0 else 0.0
+                
+                if cost_diff > 300000 or cost_pct > 0.15:
+                    alerts.append({
+                        "tipo": "incremento_importante",
+                        "mensaje": f"Incremento importante de costo: +${cost_diff:,.0f} CLP (+{cost_pct*100:.1f}%)"
+                    })
+                elif cost_diff < -300000 or cost_pct < -0.15:
+                    alerts.append({
+                        "tipo": "baja_importante",
+                        "mensaje": f"Baja importante de costo: -${abs(cost_diff):,.0f} CLP ({cost_pct*100:.1f}%)"
+                    })
+                
+                # 2. Check for new bonuses
+                for b_name in ["incentivo", "gestion", "permanencia", "responsabilidad", "descanso", "feriado", "estudios", "fallecimiento"]:
+                    val_act = item["breakdown_act"]["bonos"][b_name]
+                    val_ant = item["breakdown_ant"]["bonos"][b_name]
+                    if val_act > 0 and val_ant == 0:
+                        alerts.append({
+                            "tipo": "nuevos_bonos",
+                            "mensaje": f"Nuevo bono asignado: {b_name.capitalize()} (${val_act:,.0f} CLP)"
+                        })
+                
+                # 3. Contract changes
+                if item["cc_act"] != item["cc_ant"]:
+                    alerts.append({
+                        "tipo": "cambio_contrato",
+                        "mensaje": f"Cambio de Centro Costo: '{item['cc_ant']}' -> '{item['cc_act']}'"
+                    })
+                if item["cargo_act"] != item["cargo_ant"]:
+                    alerts.append({
+                        "tipo": "cambio_contrato",
+                        "mensaje": f"Cambio de Cargo: '{item['cargo_ant']}' -> '{item['cargo_act']}'"
+                    })
+                if item["afp_name_act"] != item["afp_name_ant"]:
+                    alerts.append({
+                        "tipo": "cambio_contrato",
+                        "mensaje": f"Cambio de AFP: '{item['afp_name_ant']}' -> '{item['afp_name_act']}'"
+                    })
+                if item["isapre_name_act"] != item["isapre_name_ant"]:
+                    alerts.append({
+                        "tipo": "cambio_contrato",
+                        "mensaje": f"Cambio de Isapre: '{item['isapre_name_ant']}' -> '{item['isapre_name_act']}'"
+                    })
+                    
+            item["alertas"] = alerts
+            comparison_list.append(item)
+            
+        # Process Egresos (missing in current month)
+        for key, ant_details in all_ant_details.items():
+            if key not in active_ruts_act:
+                comparison_list.append({
+                    "rut": ant_details["rut"],
+                    "contrato": ant_details["contrato"],
+                    "nombre": ant_details["nombre"],
+                    "estado": "Egreso",
+                    
+                    "cc_act": None, "cargo_act": None, "sede_act": None, "dias_act": 0, "base_act": 0, "total_imponible_act": 0, "alcance_act": 0, "costo_act": 0, "afp_name_act": None, "isapre_name_act": None,
+                    
+                    "cc_ant": ant_details["centro_costo"],
+                    "cargo_ant": ant_details["cargo"],
+                    "sede_ant": ant_details["sede"],
+                    "dias_ant": ant_details["dias_trabajados"] or 0,
+                    "base_ant": ant_details["sueldo_base"] or 0,
+                    "total_imponible_ant": ant_details["total_imponible"] or 0,
+                    "alcance_ant": ant_details["alcance_liquido"] or 0,
+                    "costo_ant": ant_details["costo_empresa"] or 0,
+                    "afp_name_ant": ant_details["afp_name"],
+                    "isapre_name_ant": ant_details["isapre_name"],
+                    
+                    "breakdown_act": {
+                        "bonos": {b: 0.0 for b in ["incentivo", "gestion", "permanencia", "responsabilidad", "descanso", "feriado", "estudios", "fallecimiento"]},
+                        "descuentos": {d: 0.0 for d in ["afp", "salud", "afc", "impuesto"]}
+                    },
+                    "breakdown_ant": {
+                        "bonos": {
+                            "incentivo": ant_details.get("bono_incentivo") or 0.0,
+                            "gestion": ant_details.get("bono_gestion") or 0.0,
+                            "permanencia": ant_details.get("bono_permanencia") or 0.0,
+                            "responsabilidad": ant_details.get("bono_responsabilidad") or 0.0,
+                            "descanso": ant_details.get("bono_descanso") or 0.0,
+                            "feriado": ant_details.get("bono_feriado") or 0.0,
+                            "estudios": ant_details.get("bono_estudios") or 0.0,
+                            "fallecimiento": ant_details.get("bono_fallecimiento") or 0.0,
+                        },
+                        "descuentos": {
+                            "afp": ant_details.get("descuento_afp") or 0.0,
+                            "salud": ant_details.get("descuento_salud_total") or 0.0,
+                            "afc": ant_details.get("descuento_afc") or 0.0,
+                            "impuesto": ant_details.get("descuento_impuesto") or 0.0,
+                        }
+                    },
+                    "alertas": []
+                })
+                
+        conn.close()
+        
+        return {
+            "periodo_actual": periodo,
+            "periodo_anterior": periodo_anterior,
+            "comparisons": comparison_list
+        }
 
     def get_summary(self, periodo):
         conn = sqlite3.connect(DB_PATH)
@@ -1136,9 +1624,8 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
             FROM liquidaciones l
             JOIN empleados e ON l.rut = e.rut AND l.contrato = e.contrato
             WHERE l.periodo = ? AND (
-                e.fecha_termino_contrato LIKE ? OR 
-                e.fecha_termino_contrato LIKE ? OR
-                l.ias_vacaciones > 0 OR l.ias_anos_servicio > 0 OR l.ias_aviso > 0
+                (e.fecha_finiquito IS NOT NULL AND (e.fecha_finiquito LIKE ? OR e.fecha_finiquito LIKE ?)) OR
+                l.ias_anticipo_finiquito > 0
             )
         """, (periodo, f"{periodo}%", f"%{periodo[5:7]}-{periodo[:4]}%"))
         terminations = cursor.fetchone()[0] or 0
@@ -1164,9 +1651,8 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
                 FROM liquidaciones l
                 JOIN empleados e ON l.rut = e.rut AND l.contrato = e.contrato
                 WHERE l.periodo = ? AND (
-                    e.fecha_termino_contrato LIKE ? OR 
-                    e.fecha_termino_contrato LIKE ? OR
-                    l.ias_vacaciones > 0 OR l.ias_anos_servicio > 0 OR l.ias_aviso > 0
+                    (e.fecha_finiquito IS NOT NULL AND (e.fecha_finiquito LIKE ? OR e.fecha_finiquito LIKE ?)) OR
+                    l.ias_anticipo_finiquito > 0
                 )
             """, (prev_period, f"{prev_period}%", f"%{prev_period[5:7]}-{prev_period[:4]}%"))
             prev_bajas = cursor.fetchone()[0] or 0
@@ -1333,6 +1819,7 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
                 "nombre": r["nombre"],
                 "sueldo_base": r["sueldo_base"],
                 "dias_trabajados": r["dias_trabajados"],
+                "rex_dias": r["rex_dias_trabajados"],
                 "total_imponible": r["total_imponible"],
                 "sueldo_liquido": r["sueldo_liquido"],
                 "alcance_liquido": r["alcance_liquido"],
@@ -1424,7 +1911,8 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
                 "rex_alcance": liq_dict.get("alcance_liquido", 0) if rut == "17773864-6" and periodo == "2026-05" else rex_dict.get("alcance_liquido", 0),
                 "rex_costo": rex_dict.get("costo_empresa", 0)
             },
-            "comparison_raw": rex_dict
+            "comparison_raw": rex_dict,
+            "parameters": MONTHLY_PARAMETERS.get(periodo, MONTHLY_PARAMETERS.get("2026-05", {}))
         }
 
     def get_analytics(self, periodo):
@@ -2559,7 +3047,7 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
                    SUM(total_imponible) as imponible, 
                    SUM(costo_empresa) as cost,
                    SUM(licencia_dias) as licencias_dias,
-                   SUM(ias_vacaciones + ias_anos_servicio + ias_aviso) as finiquitos_monto
+                   SUM(ias_anticipo_finiquito) as finiquitos_monto
             FROM liquidaciones
             GROUP BY periodo
             ORDER BY periodo ASC

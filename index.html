@@ -1824,6 +1824,12 @@
                     </div>
                 </li>
                 <li>
+                    <div class="menu-item" id="menu-month-audit" onclick="switchView('month-audit')">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <span>Auditoría Mensual</span>
+                    </div>
+                </li>
+                <li>
                     <div class="menu-item" id="menu-turnover" onclick="switchView('turnover')">
                         <i class="fa-solid fa-arrows-spin"></i>
                         <span>Rotación de Personal</span>
@@ -1836,11 +1842,23 @@
                         <span>Finiquitos y Vacaciones</span>
                     </div>
                 </li>
-                <li>
-                    <div class="menu-item" id="menu-projection"
-                        onclick="switchView('projection')">
+                                <li>
+                    <div class="menu-item" id="menu-projection" onclick="switchView('projection')">
                         <i class="fa-solid fa-chart-line"></i>
                         <span>Proyección de Costos</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="menu-item" id="menu-imposiciones" onclick="switchView('imposiciones')">
+                        <i class="fa-solid fa-file-invoice-dollar"></i>
+                        <span>Imposiciones</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="menu-item" id="menu-logs-alertas" onclick="switchView('logs-alertas')" style="position: relative;">
+                        <i class="fa-solid fa-bell"></i>
+                        <span>Alertas de Auditoría</span>
+                        <span id="alert-badge-count" style="display: none; position: absolute; right: 15px; top: 50%; transform: translateY(-50%); background-color: var(--danger); color: white; border-radius: 50%; font-size: 10px; font-weight: 700; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; line-height: 1;">0</span>
                     </div>
                 </li>
             </ul>
@@ -1868,8 +1886,17 @@
                             <!-- Populated dynamically -->
                         </select>
                     </div>
+                    <button id="btn-recalculate-header" class="btn btn-primary" onclick="triggerRecalculation()"
+                        style="background: linear-gradient(135deg, var(--primary), #0ea5e9); border: none; border-radius: 30px; padding: 8px 16px; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; color: white; cursor: pointer; transition: transform 0.2s ease, opacity 0.2s ease;">
+                        <i id="icon-recalculate-header" class="fa-solid fa-calculator"></i> <span id="text-recalculate-header">Recalcular</span>
+                    </button>
+                    <button class="btn btn-primary" onclick="openUploadModal()"
+                        style="background: linear-gradient(135deg, var(--brand-orange), var(--brand-teal)); border: none; border-radius: 30px; padding: 8px 16px; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; color: white; cursor: pointer;">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Cargar Archivos
+                    </button>
                 </div>
             </div>
+
 
             
 
@@ -2056,6 +2083,11 @@
                         <select id="filter-area" class="filter-select" onchange="filterEmployees()">
                             <option value="">Todas las Áreas</option>
                         </select>
+                        <select id="filter-diff" class="filter-select" onchange="filterEmployees()">
+                            <option value="">Todos los Registros</option>
+                            <option value="con_diferencia">Sólo con Diferencias</option>
+                            <option value="sin_diferencia">Sólo sin Diferencias (OK)</option>
+                        </select>
 
                         <!-- Clear filters button -->
                         <button class="btn"
@@ -2137,6 +2169,15 @@
                     </button>
                     <button class="sub-tab-btn" id="subtab-btn-variable" onclick="switchSubTab('variable')">
                         <i class="fa-solid fa-coins"></i> Análisis de Variable
+                    </button>
+                    <button class="sub-tab-btn" id="subtab-btn-auditoria-financiera" onclick="switchSubTab('auditoria-financiera')">
+                        <i class="fa-solid fa-calculator"></i> Auditoría Financiera
+                    </button>
+                    <button class="sub-tab-btn" id="subtab-btn-sensibilidad" onclick="switchSubTab('sensibilidad')">
+                        <i class="fa-solid fa-sliders"></i> Sensibilidad FP&A
+                    </button>
+                    <button class="sub-tab-btn" id="subtab-btn-provision-finiquitos" onclick="switchSubTab('provision-finiquitos')">
+                        <i class="fa-solid fa-fire-flame-curved"></i> Provisión de Finiquitos
                     </button>
                 </div>
 
@@ -2923,6 +2964,160 @@
                         </div>
                     </div>
                 </div>
+                <!-- SUBTAB 8: AUDITORÍA FINANCIERA -->
+                <div id="subtab-auditoria-financiera" class="sub-tab-content">
+                    <div class="module-header" style="margin-bottom: 25px; border-left: 4px solid var(--danger); padding-left: 15px;">
+                        <h2 style="font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--text-main);">Auditoría Financiera y Deriva</h2>
+                        <p style="color: var(--text-muted); font-size: 14px;">Análisis longitudinal de derivas de cálculo y costos de no calidad mitigados.</p>
+                    </div>
+
+                    <div class="charts-grid" style="margin-bottom: 30px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px;">
+                        <!-- Gráfico Deriva Acumulada -->
+                        <div class="glass-card" style="margin-bottom: 0;">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <i class="fa-solid fa-chart-line" style="color: var(--danger);"></i>
+                                    <h2>Saldo de Diferencias Acumuladas (Deriva Móvil)</h2>
+                                </div>
+                            </div>
+                            <div style="position: relative; height: 280px; width: 100%;">
+                                <canvas id="chart-deriva-acumulada"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Gráfico Costo No Calidad -->
+                        <div class="glass-card" style="margin-bottom: 0;">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <i class="fa-solid fa-hand-holding-dollar" style="color: var(--success);"></i>
+                                    <h2>Costo de No Calidad: Mitigado vs Activo (CLP)</h2>
+                                </div>
+                            </div>
+                            <div style="position: relative; height: 280px; width: 100%;">
+                                <canvas id="chart-no-calidad-mitigado"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUBTAB 9: SENSIBILIDAD FP&A (SANDBOX MODE) -->
+                <div id="subtab-sensibilidad" class="sub-tab-content">
+                    <div class="module-header" style="margin-bottom: 25px; border-left: 4px solid var(--primary); padding-left: 15px;">
+                        <h2 style="font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--text-main);">Simulador de Sensibilidad Previsional</h2>
+                        <p style="color: var(--text-muted); font-size: 14px;">Modifique los parámetros legales para evaluar el impacto en el costo empresa en tiempo real sin alterar la base de datos.</p>
+                    </div>
+
+                    <div class="glass-card" style="margin-bottom: 30px;">
+                        <div class="card-header" style="border-bottom: 1px solid var(--card-border); padding-bottom: 15px; margin-bottom: 20px;">
+                            <div class="card-title">
+                                <i class="fa-solid fa-sliders" style="color: var(--primary);"></i>
+                                <h2>Modo Sandbox: Multiplicadores de Parámetros</h2>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <label for="sandbox-uf" style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">UF (Multiplicador): <span id="val-sandbox-uf" style="color: var(--primary); font-weight: 700;">1.00</span></label>
+                                <input type="range" id="sandbox-uf" min="0.80" max="1.20" step="0.01" value="1.00" style="width: 100%; cursor: pointer;" oninput="updateSandboxLabel('uf')">
+                            </div>
+                            <div style="flex: 1; min-width: 200px;">
+                                <label for="sandbox-utm" style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">UTM (Multiplicador): <span id="val-sandbox-utm" style="color: var(--primary); font-weight: 700;">1.00</span></label>
+                                <input type="range" id="sandbox-utm" min="0.80" max="1.20" step="0.01" value="1.00" style="width: 100%; cursor: pointer;" oninput="updateSandboxLabel('utm')">
+                            </div>
+                            <div style="flex: 1; min-width: 200px;">
+                                <label for="sandbox-imm" style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">Sueldo Mínimo IMM (Multiplicador): <span id="val-sandbox-imm" style="color: var(--primary); font-weight: 700;">1.00</span></label>
+                                <input type="range" id="sandbox-imm" min="0.80" max="1.20" step="0.01" value="1.00" style="width: 100%; cursor: pointer;" oninput="updateSandboxLabel('imm')">
+                            </div>
+                            <div style="flex: 1; min-width: 200px;">
+                                <label for="sandbox-tope" style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">Tope AFP/Salud (Multiplicador): <span id="val-sandbox-tope" style="color: var(--primary); font-weight: 700;">1.00</span></label>
+                                <input type="range" id="sandbox-tope" min="0.80" max="1.20" step="0.01" value="1.00" style="width: 100%; cursor: pointer;" oninput="updateSandboxLabel('tope')">
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: flex-end; gap: 15px;">
+                            <button class="btn btn-secondary" onclick="resetSandboxSliders()">Restablecer</button>
+                            <button class="btn btn-primary" onclick="runSandboxSimulation()"><i class="fa-solid fa-play"></i> Ejecutar Simulación Sandbox</button>
+                        </div>
+                    </div>
+
+                    <div id="sandbox-results-card" class="glass-card" style="display: none; margin-bottom: 30px;">
+                        <div class="card-header" style="border-bottom: 1px solid var(--card-border); padding-bottom: 15px; margin-bottom: 20px;">
+                            <div class="card-title">
+                                <i class="fa-solid fa-chart-bar" style="color: var(--success);"></i>
+                                <h2>Comparativo de Costo Empresa por Obra (CLP)</h2>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px;">
+                            <div style="background: var(--bg-hover); padding: 15px; border-radius: 12px; border: 1px solid var(--card-border);">
+                                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Costo Empresa Original</span>
+                                <div id="sandbox-total-orig" style="font-size: 20px; font-weight: 800; color: var(--text-main); margin-top: 5px;">$0</div>
+                            </div>
+                            <div style="background: var(--bg-hover); padding: 15px; border-radius: 12px; border: 1px solid var(--card-border);">
+                                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Costo Empresa Simulado</span>
+                                <div id="sandbox-total-sim" style="font-size: 20px; font-weight: 800; color: var(--primary); margin-top: 5px;">$0</div>
+                            </div>
+                            <div style="background: var(--bg-hover); padding: 15px; border-radius: 12px; border: 1px solid var(--card-border);">
+                                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Variación Presupuestaria (Delta)</span>
+                                <div id="sandbox-total-delta" style="font-size: 20px; font-weight: 800; color: var(--danger); margin-top: 5px;">$0 (0%)</div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="styled-table" style="font-size: 13px;">
+                                <thead>
+                                    <tr>
+                                        <th>Obra ID</th>
+                                        <th style="text-align: right;">Costo Original</th>
+                                        <th style="text-align: right;">Costo Simulado</th>
+                                        <th style="text-align: right;">Diferencia (Delta)</th>
+                                        <th style="text-align: center;">% Variación</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sandbox-table-body">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUBTAB 10: PROVISIÓN DE FINIQUITOS (HEATMAP RISK) -->
+                <div id="subtab-provision-finiquitos" class="sub-tab-content">
+                    <div class="module-header" style="margin-bottom: 25px; border-left: 4px solid var(--brand-orange); padding-left: 15px;">
+                        <h2 style="font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--text-main);">Provisión y Mapa de Calor de Finiquitos</h2>
+                        <p style="color: var(--text-muted); font-size: 14px;">Monitoreo de pasivos laborales estimados y provisiones contables (Casos de mayor riesgo financiero).</p>
+                    </div>
+
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-fire-flame-curved" style="color: var(--brand-orange);"></i>
+                                <h2>Matriz de Riesgo y Pasivos Laborales por Colaborador Activo</h2>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="styled-table" style="font-size: 13px;">
+                                <thead>
+                                    <tr>
+                                        <th>RUT</th>
+                                        <th>Colaborador</th>
+                                        <th>Obra ID</th>
+                                        <th style="text-align: right;">Sueldo Base</th>
+                                        <th>Fecha Ingreso</th>
+                                        <th style="text-align: center;">Antigüedad (Meses)</th>
+                                        <th style="text-align: center;">Vacaciones Acum.</th>
+                                        <th style="text-align: right;">Valor Día Est.</th>
+                                        <th style="text-align: right; font-weight: bold;">Pasivo Estimado</th>
+                                        <th style="text-align: center;">Nivel de Riesgo</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="provision-table-body">
+                                    <tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 30px;">Cargando matriz de riesgo...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- VIEW 4: DISCREPANCY AUDITOR PANEL -->
@@ -2941,6 +3136,19 @@
                                 onclick="toggleDiscrepancyFilter()">
                                 <i class="fa-solid fa-filter"></i> Mostrar Sólo Diferencias
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- Banner de Alertas de Auditoría (Conceptos Duplicados) -->
+                    <div id="audit-alerts-container" style="display: none; margin-bottom: 20px;">
+                        <div class="glass-card" style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 15px;">
+                            <div style="display: flex; align-items: center; gap: 10px; color: #d97706; font-weight: 700; margin-bottom: 10px; font-size: 15px;">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                Alertas de Auditoría: Conceptos Duplicados Detectados en Planilla
+                            </div>
+                            <div id="audit-alerts-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--text-main);">
+                                <!-- Populated dynamically -->
+                            </div>
                         </div>
                     </div>
 
@@ -2968,6 +3176,7 @@
                                 <tr>
                                     <th>RUT</th>
                                     <th>Nombre Colaborador</th>
+                                    <th>Días (Calc vs Rex)</th>
                                     <th>Imponible (Calc vs Rex)</th>
                                     <th>Líquido (Calc vs Rex)</th>
                                     <th>Costo (Calc vs Rex)</th>
@@ -2977,6 +3186,111 @@
                             </thead>
                             <tbody id="discrepancy-table-body">
                                 <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: MONTH-OVER-MONTH AUDIT COMPARISON -->
+            <div id="view-month-audit" class="content-view">
+                <div class="glass-card">
+                    <div class="card-header"
+                        style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 15px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                        <div class="card-title"
+                            style="font-size: 18px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 10px;">
+                            <i class="fa-solid fa-clock-rotate-left" style="color: var(--primary); margin-right: 8px;"></i>
+                            <span id="month-audit-view-title">Auditoría de Variación Mensual (Mes Actual vs Anterior)</span>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="btn-month-audit-export-excel" class="btn"
+                                style="background: linear-gradient(135deg, #10b981, #047857);"
+                                onclick="exportMonthAuditToExcel()">
+                                <i class="fa-solid fa-file-excel"></i> Exportar Analítico
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- KPI Cards for Month Audit -->
+                    <div class="kpi-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                        <div class="kpi-card glass-card" style="padding: 15px; text-align: center; border-left: 4px solid #8b5cf6;">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Dotación Actual</div>
+                            <div id="month-audit-kpi-dotacion-act" style="font-size: 24px; font-weight: 800; color: #8b5cf6; margin-top: 5px;">0</div>
+                            <div id="month-audit-kpi-dotacion-var" style="font-size: 10px; font-weight: 600; color: var(--text-muted); margin-top: 3px;">0 ant. (Var. 0)</div>
+                        </div>
+                        <div class="kpi-card glass-card" style="padding: 15px; text-align: center; border-left: 4px solid var(--primary);">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Total Comparados</div>
+                            <div id="month-audit-kpi-total" style="font-size: 24px; font-weight: 800; color: var(--text-main); margin-top: 5px;">0</div>
+                        </div>
+                        <div class="kpi-card glass-card" style="padding: 15px; text-align: center; border-left: 4px solid #10b981;">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Nuevos Ingresos</div>
+                            <div id="month-audit-kpi-ingresos" style="font-size: 24px; font-weight: 800; color: #10b981; margin-top: 5px;">0</div>
+                        </div>
+                        <div class="kpi-card glass-card" style="padding: 15px; text-align: center; border-left: 4px solid #ef4444;">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Bajas / Egresos</div>
+                            <div id="month-audit-kpi-egresos" style="font-size: 24px; font-weight: 800; color: #ef4444; margin-top: 5px;">0</div>
+                        </div>
+                        <div class="kpi-card glass-card" style="padding: 15px; text-align: center; border-left: 4px solid #f59e0b;">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Alertas de Variación</div>
+                            <div id="month-audit-kpi-alertas" style="font-size: 24px; font-weight: 800; color: #f59e0b; margin-top: 5px;">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Search and Filters -->
+                    <div class="search-bar-container" style="flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+                        <div class="search-input-wrapper">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="month-audit-search" class="search-bar"
+                                placeholder="Buscar por nombre o RUT..." onkeyup="filterMonthAudit()">
+                        </div>
+                        <select id="month-audit-filter-type" class="filter-select" onchange="filterMonthAudit()">
+                            <option value="">Todas las Variaciones</option>
+                            <option value="ingreso">Nuevos Ingresos</option>
+                            <option value="egreso">Bajas / Egresos</option>
+                            <option value="incremento">Incremento de Costo (&gt; $300k o &gt; 15%)</option>
+                            <option value="baja">Baja de Costo (&gt; $300k o &gt; 15%)</option>
+                            <option value="bonos">Nuevos Bonos</option>
+                            <option value="cambios">Cambios de Contrato (CC, AFP, Isapre)</option>
+                        </select>
+                    </div>
+
+                    <!-- Responsive Comparison Table -->
+                    <div class="table-responsive">
+                        <table class="styled-table">
+                            <thead>
+                                <tr>
+                                    <th>RUT</th>
+                                    <th>Trabajador</th>
+                                    <th style="text-align: center;">Estado</th>
+                                    <th>Centro Costo (Ant &gt; Act)</th>
+                                    <th>Cargo (Ant &gt; Act)</th>
+                                    <th>Sede (Ant &gt; Act)</th>
+                                    <th>AFP (Ant &gt; Act)</th>
+                                    <th>Salud (Ant &gt; Act)</th>
+                                    <th style="text-align: center;">Días (Ant)</th>
+                                    <th style="text-align: center;">Días (Act)</th>
+                                    <th style="text-align: center;">Licencias (Ant)</th>
+                                    <th style="text-align: center;">Licencias (Act)</th>
+                                    <th style="text-align: right;">Sueldo Base (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">Gratificación (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">Colación (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">Movilización (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">B. Incentivo (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">B. Gestión (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">B. Permanencia (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">B. Responsab. (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">B. Desc/Feri (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">Otros Haberes (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">Impuesto Único (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">APV / Ahorro Vol (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">Alcance Líquido (Ant &gt; Act)</th>
+                                    <th style="text-align: right;">Costo Empresa (Ant &gt; Act)</th>
+                                    <th>Alertas / Ficha</th>
+                                    <th style="text-align: center;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="month-audit-table-body">
+                                <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 30px;">Cargando auditoría mes a mes...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -3924,13 +4238,339 @@
                             </tbody>
                         </table>
                     </div>
+                                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW 9: AUDIT LOGS ALERTS -->
+            <div id="view-logs-alertas" class="content-view">
+                <div class="module-header" style="margin-bottom: 25px; border-left: 4px solid var(--danger); padding-left: 15px;">
+                    <h2 style="font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--text-main);">Alertas de Auditoría y Redundancias</h2>
+                    <p style="color: var(--text-muted); font-size: 14px;">Bandeja de discrepancias salariales y costo de no calidad detectados automáticamente.</p>
+                </div>
+
+                <div class="glass-card">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; border-bottom: 1px solid var(--card-border); padding-bottom: 15px; margin-bottom: 15px;">
+                        <div class="card-title" style="margin-bottom: 0;">
+                            <i class="fa-solid fa-bell" style="color: var(--danger);"></i>
+                            <h2>Listado de Alertas del Sistema (Ordenadas por Impacto Financiero)</h2>
+                        </div>
+                    </div>
+                    
+                    <!-- Filtros de Alertas -->
+                    <div class="filter-bar" style="display: flex; gap: 15px; flex-wrap: wrap; padding: 0 20px 15px 20px; border-bottom: 1px solid var(--card-border); margin-bottom: 15px;">
+                        <div style="flex: 1; min-width: 250px; position: relative;">
+                            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                            <input type="text" id="alerts-search" class="filter-select" placeholder="Buscar por Nombre o RUT..." style="width: 100%; padding-left: 35px; border-radius: 8px;" oninput="filterAlerts()">
+                        </div>
+                        <select id="alerts-filter-obra" class="filter-select" style="width: 200px; border-radius: 8px;" onchange="filterAlerts()">
+                            <option value="">Todas las Obras</option>
+                        </select>
+                        <select id="alerts-filter-tipo" class="filter-select" style="width: 180px; border-radius: 8px;" onchange="filterAlerts()">
+                            <option value="">Todos los Tipos</option>
+                            <option value="DESVIACION_COSTO">Desviación Costo</option>
+                            <option value="Colaborador Huerfano">Colaborador Huérfano</option>
+                            <option value="Concepto No Mapeado">Concepto No Mapeado</option>
+                            <option value="Concepto Duplicado">Concepto Duplicado</option>
+                        </select>
+                        <select id="alerts-filter-estado" class="filter-select" style="width: 160px; border-radius: 8px;" onchange="filterAlerts()">
+                            <option value="">Todos los Estados</option>
+                            <option value="0">Pendientes</option>
+                            <option value="1">Resueltas</option>
+                        </select>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="styled-table">
+                            <thead>
+                                <tr>
+                                    <th>RUT</th>
+                                    <th>Colaborador</th>
+                                    <th>Cargo</th>
+                                    <th>Obra ID</th>
+                                    <th>Tipo Alerta</th>
+                                    <th>Descripción</th>
+                                    <th style="text-align: right;">Desviación Acumulada</th>
+                                    <th>Fecha Creación</th>
+                                    <th>Estado</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="alerts-table-body">
+                                <tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 30px;">Cargando alertas...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW 10: IMPOSICIONES MENSUALES -->
+            <div id="view-imposiciones" class="content-view">
+                <div class="module-header" style="margin-bottom: 25px; border-left: 4px solid var(--brand-teal); padding-left: 15px;">
+                    <h2 style="font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--text-main);">Revisión de Imposiciones Mensuales</h2>
+                    <p style="color: var(--text-muted); font-size: 14px;">Anticipación de montos a pagar (Previred), comparación con Rex+ y validación de normativa previsional vigente.</p>
+                </div>
+
+                <div id="imposiciones-banner-container" style="margin-bottom: 20px; display: none;">
+                    <div style="background: rgba(30,58,138,0.05); border: 1px solid rgba(30,58,138,0.2); padding: 15px 20px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 15px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <i class="fa-solid fa-file-invoice" style="color: #1e3a8a; font-size: 20px;"></i>
+                            <div>
+                                <span style="font-weight: 700; color: #1e3a8a; font-size: 14px;">Archivo Previred Rex+ detectado:</span>
+                                <span style="font-size: 14px; color: var(--text-main);" id="imposiciones-banner-filename">archivo.txt</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 20px;">
+                            <div style="text-align: right;">
+                                <span style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Total Archivo</span>
+                                <div style="font-size: 16px; font-weight: 700; color: #1e3a8a;" id="imposiciones-banner-total">$0</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <span style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Diferencia vs Cálc.</span>
+                                <div style="font-size: 16px; font-weight: 700; color: var(--success);" id="imposiciones-banner-diff">$0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="kpi-grid" style="margin-bottom: 25px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div class="kpi-card" style="border-left: 4px solid #3b82f6;">
+                        <div class="kpi-title">Total AFP (Obligatoria + SIS + FAPP)</div>
+                        <div class="kpi-value" id="imposiciones-kpi-afp">$0</div>
+                        <div class="kpi-sub" id="imposiciones-kpi-afp-sub">Rex+: $0 | Diff: $0</div>
+                    </div>
+                    <div class="kpi-card" style="border-left: 4px solid #10b981;">
+                        <div class="kpi-title">Total Salud (FONASA/ISAPRE)</div>
+                        <div class="kpi-value" id="imposiciones-kpi-salud">$0</div>
+                        <div class="kpi-sub" id="imposiciones-kpi-salud-sub">Rex+: $0 | Diff: $0</div>
+                    </div>
+                    <div class="kpi-card" style="border-left: 4px solid #f59e0b;">
+                        <div class="kpi-title">Seguro Cesantía (AFC)</div>
+                        <div class="kpi-value" id="imposiciones-kpi-afc">$0</div>
+                        <div class="kpi-sub" id="imposiciones-kpi-afc-sub">Rex+: $0 | Diff: $0</div>
+                    </div>
+                    <div class="kpi-card" style="border-left: 4px solid #6366f1;">
+                        <div class="kpi-title">Mutual de Seguridad</div>
+                        <div class="kpi-value" id="imposiciones-kpi-mutual">$0</div>
+                        <div class="kpi-sub" id="imposiciones-kpi-mutual-sub">Rex+: $0 | Diff: $0</div>
+                    </div>
+                    <div class="kpi-card" style="border-left: 4px solid #14b8a6;">
+                        <div class="kpi-title">Total Imposiciones a Pagar</div>
+                        <div class="kpi-value" id="imposiciones-kpi-total">$0</div>
+                        <div class="kpi-sub" id="imposiciones-kpi-total-sub">Rex+: $0 | Diff: $0</div>
+                    </div>
+                </div>
+
+                <div class="glass-card" style="margin-bottom: 25px; padding: 20px;">
+                    <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap; justify-content: space-between;">
+                        <div style="display: flex; gap: 15px; align-items: center;">
+                            <label style="font-weight: 600; color: var(--text-main);">Período de Proceso:</label>
+                            <select id="imposiciones-period-select" class="filter-select" onchange="loadImposicionesData()" style="width: 150px; border-radius: 8px;"></select>
+                        </div>
+                        <div style="display: flex; gap: 15px; align-items: center; flex: 1; max-width: 400px; position: relative;">
+                            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                            <input type="text" id="imposiciones-search-input" class="filter-select" placeholder="Buscar por Nombre, RUT, AFP o Salud..." style="width: 100%; padding-left: 35px; border-radius: 8px;" oninput="filterImposicionesTable()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sub-tabs-container" style="margin-bottom: 20px; display: flex; border-bottom: 1px solid var(--card-border); gap: 5px; overflow-x: auto; padding-bottom: 5px;">
+                    <button class="sub-tab-btn active" id="subtab-btn-imp-colab" onclick="switchImposicionesTab('colab')">
+                        <i class="fa-solid fa-users"></i> Desglose por Colaborador
+                    </button>
+                    <button class="sub-tab-btn" id="subtab-btn-imp-entidades" onclick="switchImposicionesTab('entidades')">
+                        <i class="fa-solid fa-building-columns"></i> Resumen por Entidad
+                    </button>
+                    <button class="sub-tab-btn" id="subtab-btn-imp-historial" onclick="switchImposicionesTab('historial')">
+                        <i class="fa-solid fa-clock-rotate-left"></i> Registro Histórico
+                    </button>
+                    <button class="sub-tab-btn" id="subtab-btn-imp-normativa" onclick="switchImposicionesTab('normativa')">
+                        <i class="fa-solid fa-scale-balanced"></i> Indicadores y Normativa
+                    </button>
+                </div>
+
+                <div class="sub-tab-content active" id="subtab-content-imp-colab">
+                    <div class="glass-card">
+                        <div class="table-responsive">
+                            <table class="styled-table" id="imposiciones-colab-table">
+                                <thead>
+                                    <tr>
+                                        <th>Colaborador / RUT</th>
+                                        <th>AFP / Salud</th>
+                                        <th style="text-align: right;">AFP (Cálc / Rex)</th>
+                                        <th style="text-align: right;">Salud (Cálc / Rex)</th>
+                                        <th style="text-align: right;">AFC (Cálc / Rex)</th>
+                                        <th style="text-align: right;">Mutual (Cálc / Rex)</th>
+                                        <th style="text-align: right;">Total Cálc</th>
+                                        <th style="text-align: right;">Total Rex+</th>
+                                        <th style="text-align: right;">Diferencia</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="imposiciones-colab-tbody">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sub-tab-content" id="subtab-content-imp-entidades">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;">
+                        <div class="glass-card">
+                            <div class="card-header" style="border-bottom: 1px solid var(--card-border); padding-bottom: 10px; margin-bottom: 15px;">
+                                <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-wallet" style="color: #3b82f6; margin-right: 8px;"></i>Resumen por AFP</h3>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="styled-table">
+                                    <thead>
+                                        <tr>
+                                            <th>AFP</th>
+                                            <th style="text-align: right;">Colab.</th>
+                                            <th style="text-align: right;">Pensión (Trab)</th>
+                                            <th style="text-align: right;">SIS (Patr)</th>
+                                            <th style="text-align: right;">FAPP (Patr)</th>
+                                            <th style="text-align: right;">Total AFP</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="imposiciones-entidades-afp-tbody">
+                                        <!-- Dynamic -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="glass-card">
+                            <div class="card-header" style="border-bottom: 1px solid var(--card-border); padding-bottom: 10px; margin-bottom: 15px;">
+                                <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-hospital" style="color: #10b981; margin-right: 8px;"></i>Resumen por Salud</h3>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="styled-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Institución de Salud</th>
+                                            <th style="text-align: right;">Colab.</th>
+                                            <th style="text-align: right;">Cálculo Sistema</th>
+                                            <th style="text-align: right;">Rex+</th>
+                                            <th style="text-align: right;">Diferencia</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="imposiciones-entidades-salud-tbody">
+                                        <!-- Dynamic -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sub-tab-content" id="subtab-content-imp-historial">
+                    <div class="glass-card">
+                        <div class="card-header" style="border-bottom: 1px solid var(--card-border); padding-bottom: 10px; margin-bottom: 15px;">
+                            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-clock-rotate-left" style="color: var(--primary); margin-right: 8px;"></i>Evolución Histórica de Cotizaciones</h3>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="styled-table">
+                                <thead>
+                                    <tr>
+                                        <th>Mes</th>
+                                        <th style="text-align: right;">Dotación</th>
+                                        <th style="text-align: right;">Total AFP (Pensión+SIS+FAPP)</th>
+                                        <th style="text-align: right;">Total Salud</th>
+                                        <th style="text-align: right;">Total AFC</th>
+                                        <th style="text-align: right;">Total Mutual</th>
+                                        <th style="text-align: right;">Gran Total Mes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="imposiciones-historial-tbody">
+                                    <!-- Dynamic -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sub-tab-content" id="subtab-content-imp-normativa">
+                    <div class="glass-card">
+                        <div class="card-header" style="border-bottom: 1px solid var(--card-border); padding-bottom: 10px; margin-bottom: 15px;">
+                            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main);"><i class="fa-solid fa-scale-balanced" style="color: var(--brand-teal); margin-right: 8px;"></i>Indicadores Previsionales Aplicados (Previred)</h3>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;" id="imposiciones-normativa-grid">
+                            <!-- Dynamic parameters list -->
+                        </div>
+                        <div style="margin-top: 25px; padding: 15px; border-radius: 8px; background: rgba(8, 91, 97, 0.05); border: 1px solid rgba(8, 91, 97, 0.1);">
+                            <h4 style="font-weight: 700; color: var(--primary); margin-bottom: 8px;"><i class="fa-solid fa-circle-info"></i> Validación Normativa</h4>
+                            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">El sistema valida automáticamente que las cotizaciones no excedan los topes legales. La base imponible máxima para salud y previsión (AFP) está fijada en <strong id="val-tope-afp">90.0 UF</strong>, mientras que el seguro de cesantía está topeado en <strong id="val-tope-afc">135.2 UF</strong>. Las tasas del SIS y de la Mutual se verifican contra los parámetros de la Mutual de Seguridad y Previred cargados para el período correspondiente.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RESOLVER ALERTA MODAL -->
+        <div class="modal" id="resolver-alerta-modal">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header" style="border-bottom: 1px solid var(--card-border); padding-bottom: 15px; margin-bottom: 20px;">
+                    <h2 class="modal-title" style="display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; color: var(--text-main);">
+                        <i class="fa-solid fa-circle-check" style="color: var(--success);"></i> Resolver Alerta
+                    </h2>
+                    <button class="close-btn" onclick="closeResolverAlertaModal()" style="background: transparent; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted);">&times;</button>
+                </div>
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 15px;">
+                    <input type="hidden" id="resolver-alerta-id">
+                    <p id="resolver-alerta-desc" style="font-size: 14px; color: var(--text-main); font-weight: 500;"></p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <label for="resolver-alerta-nota" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Nota de resolución / Observación:</label>
+                        <textarea id="resolver-alerta-nota" class="filter-select" style="min-height: 100px; resize: vertical; width: 100%; border-radius: 12px; font-family: inherit; font-size: 14px;" placeholder="Ingrese justificación o motivo de cierre..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                    <button class="btn" style="background: #e2e8f0; color: var(--text-main);" onclick="closeResolverAlertaModal()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="submitResolverAlerta()">Resolver Alerta</button>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- PAYSTUB MODAL DIALOG -->
-    <div class="modal" id="paystub-modal">
+                <!-- MONTH-OVER-MONTH AUDIT DETAIL MODAL -->
+        <div class="modal" id="month-audit-modal">
+            <div class="modal-content" style="max-width: 900px; width: 95%;">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="month-audit-modal-title">Detalle de Variación Comparativa</h2>
+                    <button class="close-modal" onclick="closeMonthAuditModal()">&times;</button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                        <!-- Left column: Previous Month -->
+                        <div class="glass-card" style="flex: 1; min-width: 300px; padding: 15px; border-top: 4px solid var(--text-muted);">
+                            <h3 style="font-size: 15px; margin-bottom: 12px; color: var(--text-main); display: flex; justify-content: space-between;">
+                                <span>Mes Anterior</span>
+                                <span id="month-audit-modal-lbl-ant" style="color: var(--text-muted); font-size: 13px;"></span>
+                            </h3>
+                            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;" id="month-audit-modal-body-ant">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Right column: Current Month -->
+                        <div class="glass-card" style="flex: 1; min-width: 300px; padding: 15px; border-top: 4px solid var(--primary);">
+                            <h3 style="font-size: 15px; margin-bottom: 12px; color: var(--text-main); display: flex; justify-content: space-between;">
+                                <span>Mes Actual</span>
+                                <span id="month-audit-modal-lbl-act" style="color: var(--primary); font-size: 13px;"></span>
+                            </h3>
+                            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;" id="month-audit-modal-body-act">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="padding: 15px; display: flex; justify-content: flex-end; border-top: 1px solid var(--card-border);">
+                    <button class="btn" style="background: var(--card-border); color: var(--text-main);" onclick="closeMonthAuditModal()">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PAYSTUB MODAL DIALOG -->
+        <div class="modal" id="paystub-modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title">Detalle de Liquidación Legal</h2>
@@ -4145,8 +4785,67 @@
         </div>
     </div>
 
-    <!-- DISCREPANCY AUDITOR MODAL DIALOG -->
-    <div class="modal" id="discrepancy-modal">
+            <!-- AUDIT ALERT DETAIL MODAL -->
+        <div class="modal" id="audit-alert-detail-modal">
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header" style="border-bottom: 1px solid var(--card-border);">
+                    <h2 class="modal-title" style="display: flex; align-items: center; gap: 10px; color: #d97706;">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        Detalle de Duplicidad en Planilla
+                    </h2>
+                    <button class="close-modal" onclick="closeAuditAlertDetailModal()">&times;</button>
+                </div>
+                <div class="modal-body" style="padding: 25px 30px;">
+                    <div style="margin-bottom: 20px;">
+                        <span style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Colaborador</span>
+                        <div id="alert-detail-colaborador" style="font-size: 16px; font-weight: 700; color: var(--text-main); margin-top: 4px;">-</div>
+                        <div id="alert-detail-rut" style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">-</div>
+                    </div>
+                    
+                    <div class="glass-card" style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <span style="font-size: 11px; text-transform: uppercase; color: #d97706; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                            <i class="fa-solid fa-circle-info"></i> Diagnóstico de Auditoría
+                        </span>
+                        <p id="alert-detail-text" style="font-size: 13px; color: var(--text-main); margin-top: 8px; line-height: 1.5; font-style: italic;">-</p>
+                    </div>
+
+                    <div style="font-size: 13px; color: var(--text-main); line-height: 1.6;">
+                        <h4 style="font-weight: 700; margin-bottom: 10px; font-size: 13px; color: var(--text-main);">¿Cómo se genera esta duplicidad?</h4>
+                        <p style="margin-bottom: 12px; color: var(--text-muted);">
+                            Este problema ocurre cuando el archivo Excel importado contiene múltiples columnas de haberes o bonos que se mapean al mismo concepto interno dentro de la base de datos de remuneraciones (por ejemplo, tener dos columnas distintas para bonos que terminan sumándose o registrándose bajo el mismo concepto de <strong>Bono Incentivo</strong> o <strong>Bono Feriado</strong>).
+                        </p>
+                        <p style="margin-bottom: 15px; color: var(--text-muted);">
+                            Al procesar la planilla, el motor de cálculo detectó valores positivos en ambas columnas para este colaborador. Esto duplica el registro y puede causar una discrepancia en el alcance líquido final y el costo empresa.
+                        </p>
+                        
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; font-family: monospace; font-size: 12px;">
+                            <div style="font-weight: 700; color: var(--text-main); margin-bottom: 8px; font-family: var(--font-body);">Esquema de Acumulación:</div>
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span id="alert-detail-col-a-label">↳ Columna Excel A:</span>
+                                    <span style="color: var(--danger); font-weight: 700;" id="alert-detail-col-a">-</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span id="alert-detail-col-b-label">↳ Columna Excel B:</span>
+                                    <span style="color: var(--danger); font-weight: 700;" id="alert-detail-col-b">-</span>
+                                </div>
+                                <div style="border-top: 1px dashed #cbd5e1; margin: 4px 0;"></div>
+                                <div style="display: flex; justify-content: space-between; font-weight: 700;">
+                                    <span style="color: var(--text-main);">Total Acumulado en Concepto:</span>
+                                    <span style="color: var(--primary);" id="alert-detail-total">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid var(--card-border); padding: 15px 30px; display: flex; justify-content: flex-end;">
+                    <button class="btn" style="background: var(--text-muted); border: 1px solid #94a3b8; cursor: pointer; padding: 8px 16px; border-radius: 6px;" onclick="closeAuditAlertDetailModal()">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- DISCREPANCY AUDITOR MODAL DIALOG -->
+        <div class="modal" id="discrepancy-modal">
         <div class="modal-content" style="max-width: 950px;">
             <div class="modal-header" style="border-bottom: 1px solid var(--card-border);">
                 <h2 class="modal-title" style="display: flex; align-items: center; gap: 10px;">
@@ -4690,12 +5389,18 @@
                         resData = window.OFFLINE_DATA.analytics[period];
                     } else if (path === "/api/process-comparison") {
                         resData = window.OFFLINE_DATA.process_comparisons?.[period] || { has_snapshot: false, periodo: period };
+                    } else if (path === "/api/month-comparison") {
+                        resData = window.OFFLINE_DATA.month_comparisons?.[period] || { periodo_actual: period, periodo_anterior: "", comparisons: [] };
                     } else if (path === "/api/variable-analytics") {
                         resData = {
                             history: window.OFFLINE_DATA.variable_analytics?.history || [],
                             dimensions: window.OFFLINE_DATA.variable_analytics?.periods?.[period]?.dimensions || {},
                             summary: window.OFFLINE_DATA.variable_analytics?.periods?.[period]?.summary || {}
                         };
+                    } else if (path === "/api/alertas") {
+                        resData = window.OFFLINE_DATA.alertas || [];
+                    } else if (path === "/api/resolver-alerta") {
+                        resData = { status: "success", message: "Alerta resuelta correctamente." };
                     } else if (path === "/api/obras") {
                         const emps = window.OFFLINE_DATA.employees[period] || [];
                         const obrasMap = {};
@@ -5308,6 +6013,9 @@
         function initApp() {
             fetchPeriods();
             setupDragAndDrop();
+            if (!window.OFFLINE_DATA) {
+                updateAlertBadgeCount();
+            }
         }
 
         function attemptLogin() {
@@ -6368,6 +7076,18 @@
                 document.getElementById('page-title').innerText = 'Proyección de Remuneraciones';
                 if (subtitle) subtitle.innerText = 'Proyecta el costo de planilla del mes siguiente excluyendo el personal finiquitado.';
                 setTimeout(loadProjectionObras, 100);
+            } else if (viewName === 'logs-alertas') {
+                document.getElementById('page-title').innerText = 'Alertas de Auditoría';
+                if (subtitle) subtitle.innerText = 'Monitoreo proactivo de desviaciones y costos de no calidad.';
+                setTimeout(loadLogsAlertas, 100);
+            } else if (viewName === 'imposiciones') {
+                document.getElementById('page-title').innerText = 'Revisión de Imposiciones';
+                if (subtitle) subtitle.innerText = 'Anticipación y control mensual de imposiciones previsionales y de salud.';
+                setTimeout(initImposiciones, 100);
+            } else if (viewName === 'month-audit') {
+                document.getElementById('page-title').innerText = 'Auditoría Mensual';
+                if (subtitle) subtitle.innerText = 'Auditoría de variaciones de planilla mes actual versus anterior.';
+                setTimeout(loadMonthAuditData, 100);
             }
         }
 
@@ -6416,6 +7136,12 @@
                 setTimeout(generateDimensionReport, 50);
             } else if (tabName === 'variable') {
                 setTimeout(loadVariableAnalytics, 50);
+            } else if (tabName === 'auditoria-financiera') {
+                setTimeout(loadFinancialReportsData, 50);
+            } else if (tabName === 'sensibilidad') {
+                // Wait for user inputs
+            } else if (tabName === 'provision-finiquitos') {
+                setTimeout(loadProvisionFiniquitosData, 50);
             }
         }
 
@@ -6567,8 +7293,18 @@
             sortedData.forEach(emp => {
                 const tr = document.createElement('tr');
 
-                const diffClass = Math.abs(emp.diff) <= 2 ? 'ok' : 'diff';
-                const diffText = Math.abs(emp.diff) <= 2 ? 'OK' : `${emp.diff > 0 ? '+' : ''}${emp.diff.toLocaleString('es-CL')}`;
+                const calculatedNet = emp.alcance_liquido || 0;
+                const rexNet = emp.rex_alcance || 0;
+                const netDiff = calculatedNet - rexNet;
+                const hasDiff = (Math.abs(netDiff) > 2) || (Math.abs((emp.costo_empresa || 0) - (emp.rex_costo || 0)) > 2) || (emp.variaciones && emp.variaciones.length > 0);
+
+                const diffClass = hasDiff ? 'diff' : 'ok';
+                let diffText = 'OK';
+                if (Math.abs(netDiff) > 2) {
+                    diffText = `${netDiff > 0 ? '+' : ''}${netDiff.toLocaleString('es-CL')}`;
+                } else if (hasDiff) {
+                    diffText = 'Δ Detalle';
+                }
 
                 tr.innerHTML = `
                 <td style="font-family: monospace; font-weight: 600;">${emp.rut}</td>
@@ -6696,6 +7432,7 @@
             const proyectoFilter = document.getElementById('filter-proyecto').value;
             const agrupacionFilter = document.getElementById('filter-agrupacion') ? document.getElementById('filter-agrupacion').value : '';
             const areaFilter = document.getElementById('filter-area') ? document.getElementById('filter-area').value : '';
+            const diffFilter = document.getElementById('filter-diff') ? document.getElementById('filter-diff').value : '';
 
             const filtered = employeesData.filter(emp => {
                 const matchesQuery = emp.nombre.toLowerCase().includes(query) || emp.rut.toLowerCase().replace(/\./g, '').includes(query);
@@ -6720,9 +7457,24 @@
                 const matchesAgrupacion = !agrupacionFilter || emp.agrupacion === agrupacionFilter;
                 const matchesArea = !areaFilter || emp.area === areaFilter;
 
+                let matchesDiff = true;
+                if (diffFilter === 'con_diferencia') {
+                    const calculatedNet = emp.alcance_liquido || 0;
+                    const rexNet = emp.rex_alcance || 0;
+                    const netDiff = calculatedNet - rexNet;
+                    const hasDiff = (Math.abs(netDiff) > 2) || (Math.abs((emp.costo_empresa || 0) - (emp.rex_costo || 0)) > 2) || (emp.variaciones && emp.variaciones.length > 0);
+                    matchesDiff = hasDiff;
+                } else if (diffFilter === 'sin_diferencia') {
+                    const calculatedNet = emp.alcance_liquido || 0;
+                    const rexNet = emp.rex_alcance || 0;
+                    const netDiff = calculatedNet - rexNet;
+                    const hasDiff = (Math.abs(netDiff) > 2) || (Math.abs((emp.costo_empresa || 0) - (emp.rex_costo || 0)) > 2) || (emp.variaciones && emp.variaciones.length > 0);
+                    matchesDiff = !hasDiff;
+                }
+
                 return matchesQuery && matchesAfp && matchesSalud && matchesCc &&
                     matchesGenerico && matchesSede && matchesCargo && matchesProyecto &&
-                    matchesAgrupacion && matchesArea;
+                    matchesAgrupacion && matchesArea && matchesDiff;
             });
 
             populateTable(filtered);
@@ -6784,6 +7536,7 @@
             document.getElementById('filter-proyecto').value = '';
             if (document.getElementById('filter-agrupacion')) document.getElementById('filter-agrupacion').value = '';
             if (document.getElementById('filter-area')) document.getElementById('filter-area').value = '';
+            if (document.getElementById('filter-diff')) document.getElementById('filter-diff').value = '';
             document.getElementById('filter-cc').value = '';
             document.getElementById('filter-afp').value = '';
             document.getElementById('filter-salud').value = '';
@@ -8946,6 +9699,78 @@
             document.getElementById('gerencial-modal').classList.remove('active');
         }
 
+        function triggerRecalculation() {
+            const btn = document.getElementById('btn-recalculate-header');
+            const icon = document.getElementById('icon-recalculate-header');
+            const text = document.getElementById('text-recalculate-header');
+            
+            if (btn.classList.contains('loading')) return;
+            
+            // Set loading state
+            btn.classList.add('loading');
+            btn.style.opacity = '0.7';
+            btn.style.cursor = 'not-allowed';
+            icon.classList.add('fa-spin');
+            text.textContent = 'Calculando...';
+            
+            // Save selected period to restore it after loading
+            const oldPeriod = currentPeriod;
+            
+            customFetch('/api/run-calculations', {
+                method: 'POST'
+            })
+            .then(res => {
+                if (!res.ok) {
+                    return res.text().then(text => { throw new Error(text || 'Error en el cálculo'); });
+                }
+                return res.json();
+            })
+            .then(data => {
+                // Clear cache and refetch periods
+                allPeriodsPromise = null;
+                allPeriodsData = {};
+                
+                return customFetch('/api/periods')
+                    .then(res => res.json())
+                    .then(periods => {
+                        periodsList = periods;
+                        const select = document.getElementById('header-period');
+                        select.innerHTML = '';
+
+                        periods.forEach(p => {
+                            const formatted = formatPeriodName(p);
+                            select.innerHTML += `<option value="${p}">${formatted}</option>`;
+                        });
+
+                        // Try to restore previous period, otherwise take the first one
+                        if (periods.length > 0) {
+                            if (periods.includes(oldPeriod)) {
+                                currentPeriod = oldPeriod;
+                            } else {
+                                currentPeriod = periods[0];
+                            }
+                            select.value = currentPeriod;
+                            fetchPeriodData(currentPeriod);
+                        }
+                        
+                        alert('✅ ' + (data.message || 'Cálculo finalizado con éxito.'));
+                        window.location.reload();
+                    });
+            })
+            .catch(err => {
+                console.error(err);
+                alert('❌ Error al recalcular: ' + err.message);
+            })
+            .finally(() => {
+                // Reset button state
+                btn.classList.remove('loading');
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+                icon.classList.remove('fa-spin');
+                text.textContent = 'Recalcular';
+            });
+        }
+
         function openUploadModal() {
             document.getElementById('upload-modal').classList.add('active');
         }
@@ -8986,6 +9811,66 @@
         let onlyShowDifferences = false;
 
         function renderDiscrepancyPanel() {
+            // Load Period Audit Alerts (Concept Duplicates)
+            const alertsContainer = document.getElementById('audit-alerts-container');
+            const alertsList = document.getElementById('audit-alerts-list');
+            
+            if (alertsContainer && alertsList) {
+                customFetch(`/api/audit/alerts?periodo=${currentPeriod}`)
+                .then(res => res.json())
+                .then(alerts => {
+                    if (alerts && alerts.length > 0) {
+                        alertsContainer.style.display = 'block';
+                                                    alertsList.innerHTML = alerts.map(alert => {
+                                const isHuerfano = alert.tipo_alerta === 'Colaborador Huerfano';
+                                const isNoMapeado = alert.tipo_alerta === 'Concepto No Mapeado';
+                                const hasDetail = !isHuerfano && !isNoMapeado;
+                                
+                                let badgeText = 'Duplicado';
+                                let badgeBg = 'rgba(245, 158, 11, 0.1)';
+                                let badgeColor = 'var(--warning)';
+                                
+                                if (isHuerfano) {
+                                    badgeText = 'Huérfano';
+                                    badgeBg = 'rgba(239, 68, 68, 0.1)';
+                                    badgeColor = 'var(--danger)';
+                                } else if (isNoMapeado) {
+                                    badgeText = 'No Mapeado';
+                                    badgeBg = 'rgba(249, 115, 22, 0.1)';
+                                    badgeColor = '#f97316';
+                                }
+                                
+                                return `
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(245, 158, 11, 0.04); border: 1px solid rgba(245, 158, 11, 0.15); padding: 8px 12px; border-radius: 6px; gap: 15px;">
+                                    <div style="flex: 1;">
+                                        <strong style="color: var(--text-main);">${alert.nombre || 'Colaborador'} (${alert.rut})</strong>: 
+                                        <span style="color: var(--text-muted);">${alert.detalle}</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        ${hasDetail ? `
+                                        <button class="btn" style="background: linear-gradient(135deg, var(--primary), #042f33); border: 1px solid var(--primary); padding: 4px 10px; font-size: 11px; border-radius: 6px; cursor: pointer; color: #ffffff;" 
+                                            onclick="showAuditAlertDetail('${alert.rut}', '${(alert.nombre || 'Colaborador').replace(/'/g, "\\'")}', '${alert.detalle.replace(/'/g, "\\'")}')">
+                                            <i class="fa-solid fa-circle-info"></i> Ver Detalle
+                                        </button>
+                                        ` : ''}
+                                        <span class="status-badge diff" style="background: ${badgeBg}; color: ${badgeColor}; font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-block; white-space: nowrap;">
+                                            ${badgeText}
+                                        </span>
+                                    </div>
+                                </div>
+                                `;
+                            }).join('');
+                    } else {
+                        alertsContainer.style.display = 'none';
+                        alertsList.innerHTML = '';
+                    }
+                })
+                .catch(err => {
+                    console.error("Error al cargar alertas de auditoría:", err);
+                    alertsContainer.style.display = 'none';
+                });
+            }
+
             const tbody = document.getElementById('discrepancy-table-body');
             if (!tbody) return;
             tbody.innerHTML = '';
@@ -8995,10 +9880,10 @@
             let renderedCount = 0;
 
             employeesData.forEach(emp => {
-                const calculatedNet = emp.alcance_liquido;
-                const rexNet = emp.rex_alcance;
+                const calculatedNet = emp.alcance_liquido || 0;
+                const rexNet = emp.rex_alcance || 0;
                 const diff = calculatedNet - rexNet;
-                const hasDiff = Math.abs(diff) > 2;
+                const hasDiff = (Math.abs(diff) > 2) || (Math.abs((emp.costo_empresa || 0) - (emp.rex_costo || 0)) > 2) || (emp.variaciones && emp.variaciones.length > 0);
                 const isReconciled = emp.reconciliado === 1;
 
                 if (hasDiff && !isReconciled) {
@@ -9027,7 +9912,12 @@
                 const costoStr = `${formatCLP(emp.costo_empresa || 0)} vs ${formatCLP(emp.rex_costo || 0)}`;
 
                 const diffClass = hasDiff ? 'diff' : 'ok';
-                const diffText = hasDiff ? `${diff > 0 ? '+' : ''}${diff.toLocaleString('es-CL')}` : 'OK';
+                let diffText = 'OK';
+                if (Math.abs(diff) > 2) {
+                    diffText = `${diff > 0 ? '+' : ''}${diff.toLocaleString('es-CL')}`;
+                } else if (hasDiff) {
+                    diffText = 'Δ Detalle';
+                }
 
                 let diffBadgeHtml = '';
                 if (isReconciled) {
@@ -9294,7 +10184,17 @@
                         { name: "FALP", calc: c.descuento_falp, rex: cr.falp, is_money: true },
                         { name: "Feriado Proporcional (Finiquito)", calc: c.ias_vacaciones, rex: cr.ias_vacaciones, is_money: true },
                         { name: "Años de Servicio (Finiquito)", calc: c.ias_anos_servicio, rex: cr.ias_anos_servicio, is_money: true },
-                        { name: "Indemnización Aviso (Finiquito)", calc: c.ias_aviso, rex: cr.ias_aviso, is_money: true }
+                                                { name: "Indemnización Aviso (Finiquito)", calc: c.ias_aviso, rex: cr.ias_aviso, is_money: true },
+                        { name: "Impuesto Único (IUSC)", calc: c.descuento_impuesto, rex: cr.impuesto, is_money: true },
+                        { name: "Mutual Empleador", calc: c.aporte_mutual, rex: cr.mutual, is_money: true },
+                        { name: "Seguro Invalidez y Sobrevivencia (SIS)", calc: c.aporte_sis, rex: cr.sis, is_money: true },
+                        { name: "Seguro Cesantía AFC Empleador", calc: c.aporte_afc, rex: cr.seguro_cesantia_emp, is_money: true },
+                        { 
+                            name: "Aporte AFP Patronal (FAPP 1%)", 
+                            calc: (c.costo_empresa || 0) - ((c.total_haberes || 0) + (c.aporte_sis || 0) + (c.aporte_mutual || 0) + (c.aporte_afc || 0)), 
+                            rex: (cr.costo_empresa || 0) - ((cr.total_imponible || 0) + (cr.colacion || 0) + (cr.movilizacion || 0) + (cr.pasajes || 0) + (cr.traslados || 0) + (cr.bono_estudios || 0) + (cr.bono_fallecimiento || 0) + (cr.mutual || 0) + (cr.sis || 0) + (cr.seguro_cesantia_emp || 0)), 
+                            is_money: true 
+                        }
                     ];
 
                     const subList = document.getElementById('disc-subconcepts-list');
@@ -9307,7 +10207,7 @@
                             const cVal = sc.calc || 0;
                             const rVal = sc.rex || 0;
                             const delta = cVal - rVal;
-                            
+
                             // Check delta (tolerating 2 pesos for money items)
                             const isDiff = sc.is_money ? Math.abs(delta) > 2 : Math.abs(delta) > 0.01;
                             if (isDiff) {
@@ -9343,6 +10243,21 @@
                                     explanation = "Diferencia en los haberes de término de contrato. Indica discrepancias en los parámetros de la simulación de egreso o bases de cálculo.";
                                 } else if (sc.name.includes("Descuento") || sc.name === "CCAF Crédito" || sc.name === "CCAF Préstamo" || sc.name === "Retención Judicial" || sc.name === "Préstamos Empresa" || sc.name === "FALP") {
                                     explanation = "Ajuste en los descuentos extraordinarios, anticipos de remuneración o créditos sociales aplicados en la liquidación del periodo.";
+                                } else if (sc.name === "Impuesto Único (IUSC)") {
+                                    const params = data.parameters || {};
+                                    const utmVal = params.utm || 70588.0;
+                                    const cBase = c.base_tributable || 0;
+                                    const rBase = cr.afecto_impuesto || 0;
+                                    const baseDelta = cBase - rBase;
+                                    explanation = `Diferencia en el cálculo tributario. Base Tributable Calc: ${formatCLP(cBase)} vs Rex+: ${formatCLP(rBase)} (Delta Base: ${baseDelta > 0 ? '+' : ''}${formatCLP(baseDelta)}). UTM del periodo: ${formatCLP(utmVal)}.`;
+                                } else if (sc.name === "Mutual Empleador") {
+                                    explanation = "Ajuste en la cotización patronal de la Mutualidad de empleadores (ACHS/Mutual/IST). Depende de la tasa de siniestralidad asignada a la empresa.";
+                                } else if (sc.name === "Seguro Invalidez y Sobrevivencia (SIS)") {
+                                    explanation = "Diferencia en el Seguro de Invalidez y Sobrevivencia (SIS) de cargo del empleador, calculado sobre la base imponible topada.";
+                                } else if (sc.name === "Seguro Cesantía AFC Empleador") {
+                                    explanation = "Variación en la cotización patronal de Seguro de Cesantía (2.4% para contratos indefinidos, 3.0% para contratos por obra o plazo fijo).";
+                                } else if (sc.name === "Aporte AFP Patronal (FAPP 1%)") {
+                                    explanation = "Diferencia en el Aporte AFP Empleador / FAPP (1% adicional pactado). Puede deberse a topes imponibles o asignación de haberes.";
                                 } else {
                                     explanation = "Modificación manual o ajuste extraordinario registrado en este concepto para el colaborador.";
                                 }
@@ -11675,6 +12590,1226 @@
                 }
             });
         }
+        // --- INICIO MÓDULO ALERTAS DE AUDITORÍA Y REDUNDANCIAS ---
+        let logsAlertasData = [];
+
+        function loadLogsAlertas() {
+            const tbody = document.getElementById('alerts-table-body');
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 30px;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando alertas...</td></tr>`;
+            }
+
+            customFetch('/api/alertas')
+                .then(res => res.json())
+                .then(data => {
+                    logsAlertasData = data;
+                    populateAlertsObraFilter();
+                    filterAlerts();
+                    updateAlertBadgeCount();
+                })
+                .catch(err => {
+                    console.error("Error loading alerts:", err);
+                    if (tbody) {
+                        tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--danger); padding: 30px;">Error al cargar las alertas de la base de datos.</td></tr>`;
+                    }
+                });
+        }
+
+        function populateAlertsObraFilter() {
+            const select = document.getElementById('alerts-filter-obra');
+            if (!select) return;
+            
+            const uniqueObras = new Set();
+            logsAlertasData.forEach(a => {
+                if (a.id_obra) {
+                    uniqueObras.add(a.id_obra);
+                }
+            });
+            
+            const currentSel = select.value;
+            select.innerHTML = '<option value="">Todas las Obras</option>';
+            Array.from(uniqueObras).sort().forEach(obra => {
+                select.innerHTML += `<option value="${obra}">${obra}</option>`;
+            });
+            select.value = currentSel;
+        }
+
+        function filterAlerts() {
+            const search = document.getElementById('alerts-search').value.toLowerCase().trim();
+            const obra = document.getElementById('alerts-filter-obra').value;
+            const tipo = document.getElementById('alerts-filter-tipo').value;
+            const estado = document.getElementById('alerts-filter-estado').value;
+
+            const filtered = logsAlertasData.filter(alerta => {
+                const nameMatch = alerta.nombre && alerta.nombre.toLowerCase().includes(search);
+                const rutMatch = alerta.rut && alerta.rut.toLowerCase().includes(search);
+                const searchMatch = !search || nameMatch || rutMatch;
+
+                const obraMatch = !obra || alerta.id_obra === obra;
+                const tipoMatch = !tipo || alerta.tipo_alerta === tipo;
+                const estadoMatch = !estado || String(alerta.leida) === estado;
+
+                return searchMatch && obraMatch && tipoMatch && estadoMatch;
+            });
+
+            renderLogsAlertas(filtered);
+        }
+
+        function renderLogsAlertas(dataToRender) {
+            const tbody = document.getElementById('alerts-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const alerts = dataToRender !== undefined ? dataToRender : logsAlertasData;
+
+            if (alerts.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--success); font-weight: 600; padding: 40px;"><i class="fa-solid fa-circle-check" style="font-size: 24px; display: block; margin-bottom: 10px;"></i> ¡Felicitaciones! No hay alertas de desviaciones pendientes que coincidan con los filtros.</td></tr>`;
+                return;
+            }
+
+            alerts.forEach(alerta => {
+                const tr = document.createElement('tr');
+                if (alerta.leida === 1) {
+                    tr.style.opacity = '0.65';
+                }
+                
+                let badgeClass = 'badge-danger';
+                let badgeText = alerta.tipo_alerta;
+                if (alerta.tipo_alerta === 'DESVIACION_COSTO') {
+                    badgeClass = 'badge-danger';
+                    badgeText = 'Desviación Costo';
+                } else if (alerta.tipo_alerta === 'Colaborador Huerfano') {
+                    badgeClass = 'badge-danger';
+                    badgeText = 'Huérfano';
+                } else if (alerta.tipo_alerta === 'Concepto No Mapeado') {
+                    badgeClass = 'badge-warning';
+                    badgeText = 'No Mapeado';
+                } else if (alerta.tipo_alerta === 'Concepto Duplicado') {
+                    badgeClass = 'badge-warning';
+                    badgeText = 'Duplicado';
+                }
+
+                let variationsHtml = '';
+                if (alerta.variaciones && alerta.variaciones.length > 0) {
+                    variationsHtml = '<div style="margin-top: 5px; display: flex; gap: 4px; flex-wrap: wrap;">' + 
+                        alerta.variaciones.map(v => `<span style="background: rgba(249, 115, 22, 0.08); color: #f97316; font-size: 10px; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(249, 115, 22, 0.15);">${v}</span>`).join('') +
+                        '</div>';
+                }
+                
+                const statusBadgeClass = alerta.leida === 1 ? 'badge-success' : 'badge-danger';
+                const statusText = alerta.leida === 1 ? 'Resuelta' : 'Pendiente';
+                
+                const isStructural = alerta.naturaleza === 'estructural';
+                let actionBtnHtml = '';
+                let statusHtml = '';
+                
+                if (isStructural) {
+                    statusHtml = `<span class="badge" style="background: rgba(249, 115, 22, 0.1); color: #f97316;">Calidad Datos</span>`;
+                    actionBtnHtml = `<button class="btn" style="padding: 6px 12px; font-size: 12px; background: rgba(249, 115, 22, 0.08); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.2);" disabled><i class="fa-solid fa-triangle-exclamation"></i> Auto-resuelta</button>`;
+                } else {
+                    statusHtml = `<span class="badge ${statusBadgeClass}">${statusText}</span>`;
+                    const periodVal = alerta.periodos_afectados ? JSON.parse(alerta.periodos_afectados)[0] : '2026-06';
+                    actionBtnHtml = alerta.leida === 0 
+                        ? `<button class="btn btn-secondary" onclick="openResolverAlertaModal(${alerta.id}, '${alerta.rut}', '${alerta.descripcion.replace(/'/g, "\\'")}', '${periodVal}')" style="padding: 6px 12px; font-size: 12px;"><i class="fa-solid fa-check"></i> Resolver</button>`
+                        : `<button class="btn" style="padding: 6px 12px; font-size: 12px;" disabled><i class="fa-solid fa-lock"></i> Cerrada</button>`;
+                }
+                
+                tr.innerHTML = `
+                    <td style="font-weight: 600; font-family: monospace;">${alerta.rut}</td>
+                    <td>
+                        <div style="font-weight: 600; color: var(--text-main);">${alerta.nombre || 'Personal Desvinculado'}</div>
+                        ${variationsHtml}
+                    </td>
+                    <td>${alerta.cargo || 'N/A'}</td>
+                    <td style="text-align: center;">${alerta.id_obra || 'N/A'}</td>
+                    <td><span class="badge ${badgeClass}" style="padding: 3px 8px; border-radius: 6px;">${badgeText}</span></td>
+                    <td style="max-width: 250px; white-space: normal; font-size: 12px; color: var(--text-muted);">${alerta.descripcion}</td>
+                    <td style="text-align: right; font-weight: 700; color: ${alerta.deriva_acumulada < 0 ? 'var(--danger)' : (alerta.deriva_acumulada > 0 ? 'var(--success)' : 'var(--text-muted)')}">${formatCLP(alerta.deriva_acumulada)}</td>
+                    <td>${alerta.fecha_creacion}</td>
+                    <td>${statusHtml}</td>
+                    <td>
+                        <div style="display: flex; gap: 5px;">
+                            ${!isStructural ? `
+                            <button class="btn" style="background: linear-gradient(135deg, var(--primary), #042f33); border: 1px solid var(--primary); padding: 6px 12px; font-size: 12px; color: #ffffff;" 
+                                onclick="showAuditAlertDetail('${alerta.rut}', '${(alerta.nombre || 'Colaborador').replace(/'/g, "\\'")}', '${alerta.descripcion.replace(/'/g, "\\'")}')">
+                                <i class="fa-solid fa-circle-info"></i> Detalle
+                            </button>
+                            ` : ''}
+                            ${actionBtnHtml}
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateAlertBadgeCount() {
+            customFetch('/api/alertas')
+                .then(res => res.json())
+                .then(data => {
+                    const activeAlerts = data.filter(a => a.leida === 0).length;
+                    const badge = document.getElementById('alert-badge-count');
+                    if (badge) {
+                        if (activeAlerts > 0) {
+                            badge.innerText = activeAlerts;
+                            badge.style.display = 'flex';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(err => console.error("Error updating alert count:", err));
+        }
+
+        function openResolverAlertaModal(id, rut, desc, period) {
+            document.getElementById('resolver-alerta-id').value = id;
+            document.getElementById('resolver-alerta-desc').innerHTML = `
+                <div style="font-weight: bold; margin-bottom: 8px;">Resolviendo alerta para RUT ${rut}:</div>
+                <div style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.1); padding: 10px; border-radius: 8px; font-size: 13px; color: var(--text-main);">${desc}</div>
+                <div id="resolver-alerta-breakdown" style="margin-top: 15px; font-size: 12px; display: none;">
+                    <div style="font-weight: 600; color: var(--primary); margin-bottom: 5px;">Desglose de Conceptos con Diferencia:</div>
+                    <div id="resolver-alerta-breakdown-list" style="max-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;"></div>
+                </div>
+            `;
+            document.getElementById('resolver-alerta-nota').value = '';
+            document.getElementById('resolver-alerta-modal').style.display = 'flex';
+            
+            // Query employee details to show the breakdown in the resolution modal
+            customFetch(`/api/employee/${rut}/1?periodo=${period || currentPeriod}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.comparison && data.comparison.components) {
+                        const list = document.getElementById('resolver-alerta-breakdown-list');
+                        const container = document.getElementById('resolver-alerta-breakdown');
+                        if (list && container) {
+                            list.innerHTML = '';
+                            let hasDiffs = false;
+                            data.comparison.components.forEach(c => {
+                                const diff = c.calc - c.rex;
+                                if (Math.abs(diff) > 2) {
+                                    hasDiffs = true;
+                                    list.innerHTML += `
+                                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--card-border); padding: 2px 0;">
+                                            <span>${c.name}</span>
+                                            <span>ERP: <strong>${formatCLP(c.calc)}</strong> | Rex+: <strong>${formatCLP(c.rex)}</strong> (Diff: <strong style="color: ${diff < 0 ? 'var(--danger)' : 'var(--success)'}">${formatCLP(diff)}</strong>)</span>
+                                        </div>
+                                    `;
+                                }
+                            });
+                            if (hasDiffs) {
+                                container.style.display = 'block';
+                            }
+                        }
+                    }
+                })
+                .catch(err => console.error("Error loading alert breakdown:", err));
+        }
+
+        function closeResolverAlertaModal() {
+            document.getElementById('resolver-alerta-modal').style.display = 'none';
+        }
+
+        function submitResolverAlerta() {
+            const id = document.getElementById('resolver-alerta-id').value;
+            const nota = document.getElementById('resolver-alerta-nota').value;
+
+            if (!nota.trim()) {
+                alert("Por favor ingrese una justificación o nota de resolución.");
+                return;
+            }
+
+            customFetch('/api/resolver-alerta', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    alerta_id: id,
+                    nota: nota
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                closeResolverAlertaModal();
+                loadLogsAlertas();
+            })
+            .catch(err => {
+                console.error("Error resolving alert:", err);
+                alert("Error al intentar resolver la alerta: " + err);
+            });
+        }
+        // --- INICIO MÓDULO FP&A AUDITORÍA, SENSIBILIDAD Y MATRIZ DE RIESGO (FASE 4) ---
+        let chartDerivaAcumulada = null;
+        let chartNoCalidadMitigado = null;
+
+        function loadFinancialReportsData() {
+            customFetch('/api/reportes-financieros')
+                .then(res => res.json())
+                .then(data => {
+                    renderDerivaAcumuladaChart(data.derivas);
+                    renderNoCalidadMitigadoChart(data.costos_no_calidad);
+                })
+                .catch(err => console.error("Error loading financial reports:", err));
+        }
+
+        function renderDerivaAcumuladaChart(derivas) {
+            const canvas = document.getElementById('chart-deriva-acumulada');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (chartDerivaAcumulada) chartDerivaAcumulada.destroy();
+
+            // Group by period to show overall mobile trend
+            const periodTotals = {};
+            derivas.forEach(d => {
+                if (!periodTotals[d.periodo]) {
+                    periodTotals[d.periodo] = { alcance: 0, costo: 0 };
+                }
+                periodTotals[d.periodo].alcance += d.deriva_acumulada_alcance;
+                periodTotals[d.periodo].costo += d.deriva_acumulada_costo;
+            });
+
+            const sortedPeriods = Object.keys(periodTotals).sort();
+            const alcanceData = sortedPeriods.map(p => periodTotals[p].alcance);
+            const costoData = sortedPeriods.map(p => periodTotals[p].costo);
+
+            chartDerivaAcumulada = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: sortedPeriods.map(formatPeriodName),
+                    datasets: [
+                        {
+                            label: 'Deriva Acumulada Alcance Líquido',
+                            data: alcanceData,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Deriva Acumulada Costo Empresa',
+                            data: costoData,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            ticks: { callback: value => formatCLP(value) }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderNoCalidadMitigadoChart(costos) {
+            const canvas = document.getElementById('chart-no-calidad-mitigado');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (chartNoCalidadMitigado) chartNoCalidadMitigado.destroy();
+
+            const sortedCostos = [...costos].sort((a, b) => a.periodo.localeCompare(b.periodo));
+            const periods = sortedCostos.map(c => formatPeriodName(c.periodo));
+            const mitigado = sortedCostos.map(c => c.costo_mitigado);
+            const activo = sortedCostos.map(c => c.riesgo_financiero_activo);
+
+            chartNoCalidadMitigado = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: periods,
+                    datasets: [
+                        {
+                            label: 'Costo Mitigado (Aprobado/Reconciliado)',
+                            data: mitigado,
+                            backgroundColor: '#10b981'
+                        },
+                        {
+                            label: 'Riesgo Financiero Activo (Pendiente)',
+                            data: activo,
+                            backgroundColor: '#ef4444'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: true },
+                        y: {
+                            stacked: true,
+                            ticks: { callback: value => formatCLP(value) }
+                        }
+                    }
+                }
+            });
+        }
+
+        function loadProvisionFiniquitosData() {
+            customFetch('/api/reportes-financieros')
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.getElementById('provision-table-body');
+                    if (!tbody) return;
+                    tbody.innerHTML = '';
+                    
+                    if (data.pasivos.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 30px;">No hay pasivos laborales calculados.</td></tr>`;
+                        return;
+                    }
+
+                    // Find max liabilities to calculate heat shading relative scaling
+                    const maxPasivo = Math.max(...data.pasivos.map(p => p.pasivo_laboral_estimado));
+
+                    data.pasivos.forEach(p => {
+                        const ratio = maxPasivo > 0 ? p.pasivo_laboral_estimado / maxPasivo : 0;
+                        const bgShading = `rgba(239, 68, 68, ${ratio * 0.25})`;
+                        const riskLevel = p.pasivo_laboral_estimado > 5000000 ? 'ALTO' : (p.pasivo_laboral_estimado > 2000000 ? 'MEDIO' : 'BAJO');
+                        const riskBadgeClass = riskLevel === 'ALTO' ? 'badge-danger' : (riskLevel === 'MEDIO' ? 'badge-warning' : 'badge-success');
+
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${p.rut}</td>
+                                <td>${p.nombre}</td>
+                                <td><span class="badge" style="background: var(--bg-hover); color: var(--text-main); font-weight: 600;">${p.id_obra || 'SIN OBRA'}</span></td>
+                                <td style="text-align: right;">${formatCLP(p.sueldo_base)}</td>
+                                <td>${p.fecha_inicio_contrato}</td>
+                                <td style="text-align: center; font-weight: bold;">${p.meses_antiguedad}</td>
+                                <td style="text-align: center;">${p.vacaciones_proporcionales_estimadas} días</td>
+                                <td style="text-align: right;">${formatCLP(p.valor_dia_estimado)}</td>
+                                <td style="text-align: right; font-weight: 800; background-color: ${bgShading};">${formatCLP(p.pasivo_laboral_estimado)}</td>
+                                <td style="text-align: center;"><span class="badge ${riskBadgeClass}">${riskLevel}</span></td>
+                            </tr>
+                        `;
+                    });
+                })
+                .catch(err => console.error("Error loading provision finiquitos:", err));
+        }
+
+        function updateSandboxLabel(param) {
+            const input = document.getElementById(`sandbox-${param}`);
+            const label = document.getElementById(`val-sandbox-${param}`);
+            if (input && label) {
+                label.innerText = parseFloat(input.value).toFixed(2);
+            }
+        }
+
+        function resetSandboxSliders() {
+            ['uf', 'utm', 'imm', 'tope'].forEach(p => {
+                const el = document.getElementById(`sandbox-${p}`);
+                if (el) {
+                    el.value = 1.0;
+                    updateSandboxLabel(p);
+                }
+            });
+            document.getElementById('sandbox-results-card').style.display = 'none';
+        }
+
+        function runSandboxSimulation() {
+            const uf = parseFloat(document.getElementById('sandbox-uf').value);
+            const utm = parseFloat(document.getElementById('sandbox-utm').value);
+            const imm = parseFloat(document.getElementById('sandbox-imm').value);
+            const tope = parseFloat(document.getElementById('sandbox-tope').value);
+            
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) {
+                overlay.querySelector('.loading-text').innerText = "Ejecutando Simulación Sandbox...";
+                overlay.querySelector('.loading-subtext').innerText = "Simulando cálculos de nómina activa sobre memoria...";
+                overlay.classList.add('active');
+            }
+
+            customFetch('/api/simulacion-sensibilidad', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    uf_mult: uf,
+                    utm_mult: utm,
+                    imm_mult: imm,
+                    tope_afp_mult: tope,
+                    periodo: activePeriod
+                })
+            })
+            .then(res => {
+                if (!res.ok) throw new Error("API simulation error");
+                return res.json();
+            })
+            .then(data => {
+                if (overlay) overlay.classList.remove('active');
+                
+                document.getElementById('sandbox-total-orig').innerText = formatCLP(data.original_total);
+                document.getElementById('sandbox-total-sim').innerText = formatCLP(data.simulated_total);
+                
+                const sign = data.delta_total >= 0 ? '+' : '';
+                document.getElementById('sandbox-total-delta').innerText = `${sign}${formatCLP(data.delta_total)} (${sign}${data.pct_total}%)`;
+                
+                const deltaEl = document.getElementById('sandbox-total-delta');
+                if (data.delta_total > 0) {
+                    deltaEl.style.color = 'var(--danger)';
+                } else if (data.delta_total < 0) {
+                    deltaEl.style.color = 'var(--success)';
+                } else {
+                    deltaEl.style.color = 'var(--text-muted)';
+                }
+
+                const tbody = document.getElementById('sandbox-table-body');
+                tbody.innerHTML = '';
+                
+                data.obras.forEach(o => {
+                    const oSign = o.delta >= 0 ? '+' : '';
+                    const color = o.delta > 0 ? 'var(--danger)' : (o.delta < 0 ? 'var(--success)' : 'var(--text-muted)');
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${o.id_obra}</strong></td>
+                            <td style="text-align: right;">${formatCLP(o.original)}</td>
+                            <td style="text-align: right; color: var(--primary); font-weight: bold;">${formatCLP(o.simulated)}</td>
+                            <td style="text-align: right; color: ${color}; font-weight: 600;">${oSign}${formatCLP(o.delta)}</td>
+                            <td style="text-align: center;"><span class="badge" style="background: ${o.delta > 0 ? 'rgba(239,68,68,0.1)' : (o.delta < 0 ? 'rgba(16,185,129,0.1)' : 'var(--bg-hover)')}; color: ${color};">${oSign}${o.pct}%</span></td>
+                        </tr>
+                    `;
+                });
+
+                document.getElementById('sandbox-results-card').style.display = 'block';
+            })
+            .catch(err => {
+                if (overlay) overlay.classList.remove('active');
+                console.error("Error executing sandbox simulation:", err);
+                alert("Ocurrió un error al ejecutar la simulación de sensibilidad.");
+            });
+        }
+        // --- FIN MÓDULO FP&A AUDITORÍA, SENSIBILIDAD Y MATRIZ DE RIESGO (FASE 4) ---
+        // --- FIN MÓDULO ALERTAS DE AUDITORÍA Y REDUNDANCIAS ---
+        // --- MÓDULO IMPOSICIONES MENSUALES Y REGISTRO HISTÓRICO ---
+        let currentImposicionesData = null;
+
+        function initImposiciones() {
+            const select = document.getElementById('imposiciones-period-select');
+            if (!select) return;
+
+            // Load periods
+            customFetch('/api/periods')
+                .then(res => res.json())
+                .then(periods => {
+                    select.innerHTML = '';
+                    periods.forEach(p => {
+                        select.innerHTML += `<option value="${p}">${p}</option>`;
+                    });
+                    
+                    // Load active period data
+                    loadImposicionesData();
+                })
+                .catch(err => console.error("Error loading periods for imposiciones:", err));
+
+            // Load history
+            customFetch('/api/imposiciones/historial')
+                .then(res => res.json())
+                .then(histData => {
+                    renderImposicionesHistorial(histData);
+                })
+                .catch(err => console.error("Error loading historical imposiciones:", err));
+        }
+
+        function loadImposicionesData() {
+            const period = document.getElementById('imposiciones-period-select').value;
+            if (!period) return;
+
+            customFetch(`/api/imposiciones?periodo=${period}`)
+                .then(res => res.json())
+                .then(data => {
+                    currentImposicionesData = data;
+                    
+                    // Show or hide Previred file banner
+                    const banner = document.getElementById('imposiciones-banner-container');
+                    if (data.previred_file_totals) {
+                        banner.style.display = 'block';
+                        document.getElementById('imposiciones-banner-filename').innerText = data.previred_file_totals.filename;
+                        document.getElementById('imposiciones-banner-total').innerText = formatCLP(data.previred_file_totals.total);
+                        
+                        // Calculate total system calculated imposiciones for comparison
+                        let totalCalc = 0;
+                        data.data.forEach(row => {
+                            totalCalc += (row.calc_afp_prev || 0) + (row.calc_sis || 0) + (row.calc_fapp || 0);
+                            totalCalc += row.calc_salud || 0;
+                            totalCalc += (row.calc_afc_trab || 0) + (row.calc_afc_emp || 0);
+                            totalCalc += row.calc_mutual || 0;
+                        });
+                        const diff = totalCalc - data.previred_file_totals.total;
+                        const diffEl = document.getElementById('imposiciones-banner-diff');
+                        diffEl.innerText = `${diff >= 0 ? '+' : ''}${formatCLP(diff)}`;
+                        diffEl.style.color = Math.abs(diff) > 10 ? 'var(--danger)' : 'var(--success)';
+                    } else {
+                        banner.style.display = 'none';
+                    }
+                    
+                    renderImposicionesKPIs(data);
+                    renderImposicionesTable(data);
+                    renderImposicionesEntities(data);
+                    renderImposicionesNormativa(data.parameters);
+                })
+                .catch(err => {
+                    console.error("Error loading imposiciones data:", err);
+                    alert("Error al cargar la información de imposiciones del período.");
+                });
+        }
+
+        function switchImposicionesTab(tabName) {
+            document.querySelectorAll('#view-imposiciones .sub-tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('#view-imposiciones .sub-tab-content').forEach(c => c.classList.remove('active'));
+
+            const activeBtn = document.getElementById(`subtab-btn-imp-${tabName}`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            const activeContent = document.getElementById(`subtab-content-imp-${tabName}`);
+            if (activeContent) activeContent.classList.add('active');
+        }
+
+        function filterImposicionesTable() {
+            const term = document.getElementById('imposiciones-search-input').value.toLowerCase().trim();
+            const tbody = document.getElementById('imposiciones-colab-tbody');
+            if (!tbody) return;
+
+            const rows = tbody.getElementsByTagName('tr');
+            for (let row of rows) {
+                if (row.cells.length < 2) continue;
+                const text = row.innerText.toLowerCase();
+                if (text.includes(term)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        }
+
+        function renderImposicionesKPIs(data) {
+            let totalAfpCalc = 0, totalAfpRex = 0;
+            let totalSaludCalc = 0, totalSaludRex = 0;
+            let totalAfcCalc = 0, totalAfcRex = 0;
+            let totalMutualCalc = 0, totalMutualRex = 0;
+
+            const ufVal = data.parameters ? (data.parameters.uf || 40820.31) : 40820.31;
+            const topeAfpClp = 90.0 * ufVal;
+
+            data.data.forEach(row => {
+                totalAfpCalc += (row.calc_afp_prev || 0) + (row.calc_sis || 0) + (row.calc_fapp || 0);
+                
+                // Estimate Rex+ FAPP (1% of imponible capped at AFP limit) to align comparisons
+                const rexFapp = Math.round(Math.min(row.total_imponible || 0, topeAfpClp) * 0.01);
+                totalAfpRex += (row.rex_afp_prev || 0) + (row.rex_sis || 0) + rexFapp;
+
+                totalSaludCalc += row.calc_salud || 0;
+                totalSaludRex += row.rex_salud || 0;
+
+                totalAfcCalc += (row.calc_afc_trab || 0) + (row.calc_afc_emp || 0);
+                totalAfcRex += (row.rex_afc_trab || 0) + (row.rex_afc_emp || 0);
+
+                totalMutualCalc += row.calc_mutual || 0;
+                totalMutualRex += row.rex_mutual || 0;
+            });
+
+            const grandTotalCalc = totalAfpCalc + totalSaludCalc + totalAfcCalc + totalMutualCalc;
+            const grandTotalRex = totalAfpRex + totalSaludRex + totalAfcRex + totalMutualRex;
+
+            // Render KPI cards
+            document.getElementById('imposiciones-kpi-afp').innerText = formatCLP(totalAfpCalc);
+            document.getElementById('imposiciones-kpi-afp-sub').innerText = `Rex+: ${formatCLP(totalAfpRex)} | Diff: ${formatCLP(totalAfpCalc - totalAfpRex)}`;
+
+            document.getElementById('imposiciones-kpi-salud').innerText = formatCLP(totalSaludCalc);
+            document.getElementById('imposiciones-kpi-salud-sub').innerText = `Rex+: ${formatCLP(totalSaludRex)} | Diff: ${formatCLP(totalSaludCalc - totalSaludRex)}`;
+
+            document.getElementById('imposiciones-kpi-afc').innerText = formatCLP(totalAfcCalc);
+            document.getElementById('imposiciones-kpi-afc-sub').innerText = `Rex+: ${formatCLP(totalAfcRex)} | Diff: ${formatCLP(totalAfcCalc - totalAfcRex)}`;
+
+            document.getElementById('imposiciones-kpi-mutual').innerText = formatCLP(totalMutualCalc);
+            document.getElementById('imposiciones-kpi-mutual-sub').innerText = `Rex+: ${formatCLP(totalMutualRex)} | Diff: ${formatCLP(totalMutualCalc - totalMutualRex)}`;
+
+            document.getElementById('imposiciones-kpi-total').innerText = formatCLP(grandTotalCalc);
+            document.getElementById('imposiciones-kpi-total-sub').innerText = `Rex+: ${formatCLP(grandTotalRex)} | Diff: ${formatCLP(grandTotalCalc - grandTotalRex)}`;
+        }
+
+        function renderImposicionesTable(data) {
+            const tbody = document.getElementById('imposiciones-colab-tbody');
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+            if (data.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 20px;">No hay datos para este período.</td></tr>';
+                return;
+            }
+
+            const ufVal = data.parameters ? (data.parameters.uf || 40820.31) : 40820.31;
+            const topeAfpClp = 90.0 * ufVal;
+
+            data.data.forEach(row => {
+                const afpCalc = (row.calc_afp_prev || 0) + (row.calc_sis || 0) + (row.calc_fapp || 0);
+                
+                // Estimate Rex+ FAPP (1% of imponible capped at AFP limit) to align comparisons
+                const rexFapp = Math.round(Math.min(row.total_imponible || 0, topeAfpClp) * 0.01);
+                const afpRex = (row.rex_afp_prev || 0) + (row.rex_sis || 0) + rexFapp;
+                
+                const afcCalc = (row.calc_afc_trab || 0) + (row.calc_afc_emp || 0);
+                const afcRex = (row.rex_afc_trab || 0) + (row.rex_afc_emp || 0);
+                
+                const totalCalc = afpCalc + (row.calc_salud || 0) + afcCalc + (row.calc_mutual || 0);
+                const totalRex = afpRex + (row.rex_salud || 0) + afcRex + (row.rex_mutual || 0);
+                const diff = totalCalc - totalRex;
+
+                const afpName = (row.rex_afp_name || row.emp_afp || "N/A").toUpperCase();
+                const saludName = (row.rex_isapre_name || row.emp_isapre || "N/A").toUpperCase();
+
+                const diffColor = Math.abs(diff) > 10 ? 'var(--danger)' : (Math.abs(diff) > 2 ? '#eab308' : 'var(--success)');
+                const diffWeight = Math.abs(diff) > 2 ? 'bold' : 'normal';
+
+                // Previred file values (from Rex+ txt file)
+                const hasPrev = row.previred_file ? true : false;
+                const prevAfp = hasPrev ? ((row.previred_file.afp_prev || 0) + (row.previred_file.sis || 0) + (row.previred_file.seg_social || 0)) : 0;
+                const prevSalud = hasPrev ? (row.previred_file.salud || 0) : 0;
+                const prevAfc = hasPrev ? ((row.previred_file.afc_trab || 0) + (row.previred_file.afc_emp || 0)) : 0;
+                const prevMutual = hasPrev ? (row.previred_file.mutual || 0) : 0;
+                const prevTotal = hasPrev ? (row.previred_file.total || 0) : 0;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>
+                            <strong>${row.nombre}</strong><br>
+                            <span style="font-size: 11px; color: var(--text-muted);">${row.rut}</span>
+                        </td>
+                        <td>
+                            <span class="badge" style="background: rgba(59,130,246,0.1); color: #3b82f6;">${afpName}</span><br>
+                            <span class="badge" style="background: rgba(16,185,129,0.1); color: #10b981; margin-top: 4px;">${saludName}</span>
+                        </td>
+                        <td style="text-align: right;">
+                            <strong>${formatCLP(afpCalc)}</strong><br>
+                            <span style="font-size: 11px; color: var(--text-muted);">${formatCLP(afpRex)} (Exc)</span>
+                            ${hasPrev ? `<br><span style="font-size: 10px; color: #1d4ed8; font-weight: 500;">${formatCLP(prevAfp)} (Prev)</span>` : ''}
+                        </td>
+                        <td style="text-align: right;">
+                            <strong>${formatCLP(row.calc_salud || 0)}</strong><br>
+                            <span style="font-size: 11px; color: var(--text-muted);">${formatCLP(row.rex_salud || 0)} (Exc)</span>
+                            ${hasPrev ? `<br><span style="font-size: 10px; color: #1d4ed8; font-weight: 500;">${formatCLP(prevSalud)} (Prev)</span>` : ''}
+                        </td>
+                        <td style="text-align: right;">
+                            <strong>${formatCLP(afcCalc)}</strong><br>
+                            <span style="font-size: 11px; color: var(--text-muted);">${formatCLP(afcRex)} (Exc)</span>
+                            ${hasPrev ? `<br><span style="font-size: 10px; color: #1d4ed8; font-weight: 500;">${formatCLP(prevAfc)} (Prev)</span>` : ''}
+                        </td>
+                        <td style="text-align: right;">
+                            <strong>${formatCLP(row.calc_mutual || 0)}</strong><br>
+                            <span style="font-size: 11px; color: var(--text-muted);">${formatCLP(row.rex_mutual || 0)} (Exc)</span>
+                            ${hasPrev ? `<br><span style="font-size: 10px; color: #1d4ed8; font-weight: 500;">${formatCLP(prevMutual)} (Prev)</span>` : ''}
+                        </td>
+                        <td style="text-align: right; font-weight: bold; color: var(--primary);">${formatCLP(totalCalc)}</td>
+                        <td style="text-align: right; color: var(--text-muted);">
+                            ${formatCLP(totalRex)} (Exc)
+                            ${hasPrev ? `<br><span style="font-size: 10px; color: #1d4ed8; font-weight: 500;">${formatCLP(prevTotal)} (Prev)</span>` : ''}
+                        </td>
+                        <td style="text-align: right; color: ${diffColor}; font-weight: ${diffWeight};">${diff >= 0 ? '+' : ''}${formatCLP(diff)}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderImposicionesEntities(data) {
+            const afpTbody = document.getElementById('imposiciones-entidades-afp-tbody');
+            const saludTbody = document.getElementById('imposiciones-entidades-salud-tbody');
+
+            if (afpTbody) {
+                afpTbody.innerHTML = '';
+                const afpGroups = {};
+
+                data.data.forEach(row => {
+                    const afp = (row.rex_afp_name || row.emp_afp || "Desconocida").toUpperCase();
+                    if (!afpGroups[afp]) {
+                        afpGroups[afp] = { count: 0, obligatoria: 0, sis: 0, fapp: 0, total: 0 };
+                    }
+                    afpGroups[afp].count++;
+                    afpGroups[afp].obligatoria += row.calc_afp_prev || 0;
+                    afpGroups[afp].sis += row.calc_sis || 0;
+                    afpGroups[afp].fapp += row.calc_fapp || 0;
+                    afpGroups[afp].total += (row.calc_afp_prev || 0) + (row.calc_sis || 0) + (row.calc_fapp || 0);
+                });
+
+                Object.keys(afpGroups).sort().forEach(afp => {
+                    const g = afpGroups[afp];
+                    afpTbody.innerHTML += `
+                        <tr>
+                            <td><strong>${afp}</strong></td>
+                            <td style="text-align: right;">${g.count}</td>
+                            <td style="text-align: right;">${formatCLP(g.obligatoria)}</td>
+                            <td style="text-align: right;">${formatCLP(g.sis)}</td>
+                            <td style="text-align: right;">${formatCLP(g.fapp)}</td>
+                            <td style="text-align: right; font-weight: bold; color: var(--primary);">${formatCLP(g.total)}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            if (saludTbody) {
+                saludTbody.innerHTML = '';
+                const saludGroups = {};
+
+                data.data.forEach(row => {
+                    const salud = (row.rex_isapre_name || row.emp_isapre || "FONASA").toUpperCase();
+                    if (!saludGroups[salud]) {
+                        saludGroups[salud] = { count: 0, calc: 0, rex: 0 };
+                    }
+                    saludGroups[salud].count++;
+                    saludGroups[salud].calc += row.calc_salud || 0;
+                    saludGroups[salud].rex += row.rex_salud || 0;
+                });
+
+                Object.keys(saludGroups).sort().forEach(salud => {
+                    const g = saludGroups[salud];
+                    const diff = g.calc - g.rex;
+                    const diffColor = Math.abs(diff) > 10 ? 'var(--danger)' : 'var(--success)';
+                    saludTbody.innerHTML += `
+                        <tr>
+                            <td><strong>${salud}</strong></td>
+                            <td style="text-align: right;">${g.count}</td>
+                            <td style="text-align: right; font-weight: bold; color: var(--primary);">${formatCLP(g.calc)}</td>
+                            <td style="text-align: right;">${formatCLP(g.rex)}</td>
+                            <td style="text-align: right; color: ${diffColor}; font-weight: bold;">${diff >= 0 ? '+' : ''}${formatCLP(diff)}</td>
+                        </tr>
+                    `;
+                });
+            }
+        }
+
+        function renderImposicionesHistorial(histData) {
+            const tbody = document.getElementById('imposiciones-historial-tbody');
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+            if (histData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">No hay historial registrado.</td></tr>';
+                return;
+            }
+
+            histData.forEach(row => {
+                const totalAfp = (row.total_afp_trab || 0) + (row.total_sis || 0) + (row.total_fapp || 0);
+                const totalAfc = (row.total_afc_trab || 0) + (row.total_afc_emp || 0);
+                const grandTotal = totalAfp + (row.total_salud_trab || 0) + totalAfc + (row.total_mutual || 0);
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td><strong>${row.periodo}</strong></td>
+                        <td style="text-align: right;">${row.qty} Colab.</td>
+                        <td style="text-align: right;">${formatCLP(totalAfp)}</td>
+                        <td style="text-align: right;">${formatCLP(row.total_salud_trab || 0)}</td>
+                        <td style="text-align: right;">${formatCLP(totalAfc)}</td>
+                        <td style="text-align: right;">${formatCLP(row.total_mutual || 0)}</td>
+                        <td style="text-align: right; font-weight: bold; color: var(--primary);">${formatCLP(grandTotal)}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderImposicionesNormativa(parameters) {
+            const grid = document.getElementById('imposiciones-normativa-grid');
+            if (!grid) return;
+
+            grid.innerHTML = '';
+            if (!parameters || Object.keys(parameters).length === 0) {
+                grid.innerHTML = '<p style="color: var(--text-muted);">No se encontraron parámetros previsionales cargados para este período.</p>';
+                return;
+            }
+
+            const formatVal = (key, val) => {
+                if (key === 'uf' || key === 'utm') return formatCLP(val);
+                if (key === 'imm') return formatCLP(val);
+                if (key.includes('tasa')) return `${val}%`;
+                if (key.includes('tope')) return `${val} UF`;
+                return val;
+            };
+
+            const labels = {
+                "uf": "Unidad de Fomento (UF)",
+                "utm": "Unidad Tributaria Mensual (UTM)",
+                "imm": "Ingreso Mínimo Mensual (IMM)",
+                "sis_tasa": "Tasa SIS (Seguro Invalidez)",
+                "mutual_tasa": "Tasa Mutual Básica",
+                "tope_imponible_afp_uf": "Tope Imponible AFP/Salud",
+                "tope_imponible_afc_uf": "Tope Imponible AFC (Cesantía)"
+            };
+
+            Object.keys(parameters).forEach(key => {
+                const label = labels[key] || key.replace('_', ' ').toUpperCase();
+                const val = parameters[key];
+                grid.innerHTML += `
+                    <div style="background: var(--bg-hover); padding: 15px; border-radius: 8px; border: 1px solid var(--card-border);">
+                        <span style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">${label}</span>
+                        <div style="font-size: 20px; font-weight: 700; color: var(--primary); margin-top: 5px;">${formatVal(key, val)}</div>
+                    </div>
+                `;
+            });
+
+            // Update topes in compliance text
+            if (parameters.tope_imponible_afp_uf) {
+                document.getElementById('val-tope-afp').innerText = `${parameters.tope_imponible_afp_uf} UF`;
+            }
+            if (parameters.tope_imponible_afc_uf) {
+                document.getElementById('val-tope-afc').innerText = `${parameters.tope_imponible_afc_uf} UF`;
+            }
+        }
+        // --- FIN MÓDULO IMPOSICIONES MENSUALES Y REGISTRO HISTÓRICO ---
+
+        // --- MÓDULO AUDIT COMPARISON MENSUAL (MES A MES) ---
+        let monthAuditData = [];
+
+        function loadMonthAuditData() {
+            const tbody = document.getElementById('month-audit-table-body');
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 30px;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando comparación mensual...</td></tr>';
+            
+            customFetch(`/api/month-comparison?periodo=${currentPeriod}`)
+                .then(res => res.json())
+                .then(data => {
+                    monthAuditData = data.comparisons || [];
+                    
+                    // Update header/labels with period names
+                    document.getElementById('month-audit-view-title').innerText = `Auditoría de Variación Mensual (${formatPeriodName(data.periodo_actual)} vs ${formatPeriodName(data.periodo_anterior) || 'Proceso Anterior'})`;
+                    document.getElementById('month-audit-modal-lbl-ant').innerText = formatPeriodName(data.periodo_anterior);
+                    document.getElementById('month-audit-modal-lbl-act').innerText = formatPeriodName(data.periodo_actual);
+                    
+                    // Populate KPIs
+                    const total = monthAuditData.length;
+                    const ingresos = monthAuditData.filter(x => x.estado === 'Ingreso').length;
+                    const egresos = monthAuditData.filter(x => x.estado === 'Egreso').length;
+                    const alertas = monthAuditData.filter(x => x.alertas && x.alertas.length > 0).length;
+                    
+                    const dotacionActual = monthAuditData.filter(x => x.estado !== 'Egreso').length;
+                    const dotacionAnterior = monthAuditData.filter(x => x.estado !== 'Ingreso').length;
+                    const dotacionVar = dotacionActual - dotacionAnterior;
+                    const varSign = dotacionVar >= 0 ? '+' : '';
+                    
+                    document.getElementById('month-audit-kpi-dotacion-act').innerText = dotacionActual;
+                    document.getElementById('month-audit-kpi-dotacion-var').innerText = `vs ${dotacionAnterior} ant. (Var. ${varSign}${dotacionVar})`;
+                    
+                    document.getElementById('month-audit-kpi-total').innerText = total;
+                    document.getElementById('month-audit-kpi-ingresos').innerText = ingresos;
+                    document.getElementById('month-audit-kpi-egresos').innerText = egresos;
+                    document.getElementById('month-audit-kpi-alertas').innerText = alertas;
+                    
+                    filterMonthAudit();
+                })
+                .catch(err => {
+                    console.error("Error loading month comparison:", err);
+                    tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--danger); padding: 30px;">Error al cargar comparación mensual.</td></tr>';
+                });
+        }
+
+        function filterMonthAudit() {
+            const search = document.getElementById('month-audit-search').value.toLowerCase().replace(/\./g, '').trim();
+            const filterType = document.getElementById('month-audit-filter-type').value;
+            const tbody = document.getElementById('month-audit-table-body');
+            tbody.innerHTML = '';
+            
+            const filtered = monthAuditData.filter(emp => {
+                const matchesSearch = emp.nombre.toLowerCase().includes(search) || emp.rut.toLowerCase().replace(/\./g, '').includes(search);
+                
+                let matchesType = true;
+                if (filterType === 'ingreso') {
+                    matchesType = emp.estado === 'Ingreso';
+                } else if (filterType === 'egreso') {
+                    matchesType = emp.estado === 'Egreso';
+                } else if (filterType === 'incremento') {
+                    matchesType = emp.alertas && emp.alertas.some(a => a.tipo === 'incremento_importante');
+                } else if (filterType === 'baja') {
+                    matchesType = emp.alertas && emp.alertas.some(a => a.tipo === 'baja_importante');
+                } else if (filterType === 'bonos') {
+                    matchesType = emp.alertas && emp.alertas.some(a => a.tipo === 'nuevos_bonos');
+                } else if (filterType === 'cambios') {
+                    matchesType = emp.alertas && emp.alertas.some(a => a.tipo === 'cambio_contrato');
+                }
+                
+                return matchesSearch && matchesType;
+            });
+            
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="28" style="text-align: center; color: var(--text-muted); padding: 30px;">No se encontraron resultados para los filtros seleccionados</td></tr>';
+                return;
+            }
+            
+            filtered.forEach((emp, index) => {
+                let statusBadge = '';
+                if (emp.estado === 'Ingreso') {
+                    statusBadge = '<span class="status-badge ok"><i class="fa-solid fa-user-plus"></i> Ingreso</span>';
+                } else if (emp.estado === 'Egreso') {
+                    statusBadge = '<span class="status-badge diff"><i class="fa-solid fa-user-minus"></i> Egreso</span>';
+                } else {
+                    statusBadge = '<span class="status-badge" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);"><i class="fa-solid fa-user-check"></i> Activo</span>';
+                }
+                
+                // Format helper
+                function formatMoM(valAnt, valAct, isCurrency = true) {
+                    const vAnt = valAnt || 0;
+                    const vAct = valAct || 0;
+                    const antStr = isCurrency ? formatCLP(vAnt) : vAnt;
+                    const actStr = isCurrency ? formatCLP(vAct) : vAct;
+                    if (vAnt === vAct) {
+                        return isCurrency && vAnt === 0 ? '$0' : `${actStr}`;
+                    }
+                    return `<span style="color: var(--text-muted); text-decoration: line-through; font-size: 10px;">${antStr}</span> &rarr; <span style="font-weight:600; color: ${vAct > vAnt ? '#10b981' : '#ef4444'}">${actStr}</span>`;
+                }
+
+                // Format text helper
+                function formatTextMoM(valAnt, valAct) {
+                    const vAnt = valAnt || 'S/A';
+                    const vAct = valAct || 'S/A';
+                    if (vAnt === vAct) {
+                        return vAct;
+                    }
+                    return `
+                        <div style="display: flex; flex-direction: column; gap: 2px; line-height: 1.2;">
+                            <span style="color: var(--text-muted); text-decoration: line-through; font-size: 10px;">${vAnt}</span>
+                            <span style="font-weight: 600; color: #3b82f6; font-size: 11px;">${vAct}</span>
+                        </div>
+                    `;
+                }
+
+                // Format Ant -> Act strings
+                const ccText = emp.estado === 'Ingreso' ? emp.cc_act : (emp.estado === 'Egreso' ? emp.cc_ant : (emp.cc_ant === emp.cc_act ? emp.cc_act : `${emp.cc_ant} &rarr; ${emp.cc_act}`));
+                const cargoText = emp.estado === 'Ingreso' ? emp.cargo_act : (emp.estado === 'Egreso' ? emp.cargo_ant : formatTextMoM(emp.cargo_ant, emp.cargo_act));
+                const sedeText = emp.estado === 'Ingreso' ? emp.sede_act : (emp.estado === 'Egreso' ? emp.sede_ant : formatTextMoM(emp.sede_ant, emp.sede_act));
+                const afpText = emp.estado === 'Ingreso' ? emp.afp_name_act : (emp.estado === 'Egreso' ? emp.afp_name_ant : formatTextMoM(emp.afp_name_ant, emp.afp_name_act));
+                const saludText = emp.estado === 'Ingreso' ? emp.isapre_name_act : (emp.estado === 'Egreso' ? emp.isapre_name_ant : formatTextMoM(emp.isapre_name_ant, emp.isapre_name_act));
+                
+                const diasAnt = emp.estado === 'Ingreso' ? '0' : emp.dias_ant;
+                const diasAct = emp.estado === 'Egreso' ? '0' : emp.dias_act;
+                const licAnt = emp.estado === 'Ingreso' ? '0' : emp.licencias_ant;
+                const licAct = emp.estado === 'Egreso' ? '0' : emp.licencias_act;
+                
+                const baseText = formatMoM(emp.base_ant, emp.base_act);
+                const gratText = formatMoM(emp.grat_ant, emp.grat_act);
+                const colText = formatMoM(emp.col_ant, emp.col_act);
+                const movText = formatMoM(emp.mov_ant, emp.mov_act);
+                const incText = formatMoM(emp.inc_ant, emp.inc_act);
+                const gestText = formatMoM(emp.gest_ant, emp.gest_act);
+                const permText = formatMoM(emp.perm_ant, emp.perm_act);
+                const respText = formatMoM(emp.resp_ant, emp.resp_act);
+                const descFeriText = formatMoM(emp.desc_feri_ant, emp.desc_feri_act);
+                const otrosHabText = formatMoM(emp.otros_hab_ant, emp.otros_hab_act);
+                
+                const impuestoText = formatMoM(emp.impuesto_ant, emp.impuesto_act);
+                const apvAhorroText = formatMoM((emp.apvi_ant || 0) + (emp.ahorro_afp_ant || 0), (emp.apvi_act || 0) + (emp.ahorro_afp_act || 0));
+                
+                const alcanceText = formatMoM(emp.alcance_ant, emp.alcance_act);
+                const costoText = formatMoM(emp.costo_ant, emp.costo_act);
+                
+                // Format Alerts / Ficha list
+                let alertsHtml = '<div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">';
+                if (emp.estado === 'Ingreso') {
+                    alertsHtml += `<span style="color: #10b981;"><i class="fa-solid fa-circle-info"></i> Nuevo colaborador</span>`;
+                } else if (emp.estado === 'Egreso') {
+                    alertsHtml += `<span style="color: #ef4444;"><i class="fa-solid fa-circle-info"></i> Colaborador finiquitado</span>`;
+                } else {
+                    let hasAlerts = false;
+                    // Salary/Costo alerts
+                    if (emp.alertas && emp.alertas.length > 0) {
+                        emp.alertas.forEach(a => {
+                            const icon = a.tipo.includes('incremento') ? 'fa-arrow-trend-up' : (a.tipo.includes('baja') ? 'fa-arrow-trend-down' : 'fa-circle-exclamation');
+                            const color = a.tipo.includes('incremento') ? '#10b981' : (a.tipo.includes('baja') ? '#ef4444' : '#f59e0b');
+                            alertsHtml += `<span style="color: ${color};"><i class="fa-solid ${icon}"></i> ${a.mensaje}</span>`;
+                        });
+                        hasAlerts = true;
+                    }
+                    
+                    // Ficha changes (AFP, Isapre, Plan)
+                    if (emp.afp_name_act !== emp.afp_name_ant) {
+                        alertsHtml += `<span style="color: #3b82f6; font-weight: 600;"><i class="fa-solid fa-passport"></i> AFP: ${emp.afp_name_ant || 'S/A'} &rarr; ${emp.afp_name_act || 'S/A'}</span>`;
+                        hasAlerts = true;
+                    }
+                    if (emp.isapre_name_act !== emp.isapre_name_ant) {
+                        alertsHtml += `<span style="color: #3b82f6; font-weight: 600;"><i class="fa-solid fa-notes-medical"></i> Salud: ${emp.isapre_name_ant || 'S/A'} &rarr; ${emp.isapre_name_act || 'S/A'}</span>`;
+                        hasAlerts = true;
+                    }
+                    if (emp.plan_uf_act !== emp.plan_uf_ant || emp.plan_pesos_act !== emp.plan_pesos_ant) {
+                        const ufAnt = emp.plan_uf_ant ? `${emp.plan_uf_ant} UF` : '';
+                        const clpAnt = emp.plan_pesos_ant ? `$${emp.plan_pesos_ant}` : '';
+                        const planAntStr = [ufAnt, clpAnt].filter(Boolean).join(" + ") || '7%';
+                        
+                        const ufAct = emp.plan_uf_act ? `${emp.plan_uf_act} UF` : '';
+                        const clpAct = emp.plan_pesos_act ? `$${emp.plan_pesos_act}` : '';
+                        const planActStr = [ufAct, clpAct].filter(Boolean).join(" + ") || '7%';
+                        
+                        alertsHtml += `<span style="color: #8b5cf6; font-weight: 600;"><i class="fa-solid fa-file-invoice-dollar"></i> Plan: ${planAntStr} &rarr; ${planActStr}</span>`;
+                        hasAlerts = true;
+                    }
+                    
+                    if (!hasAlerts) {
+                        alertsHtml += `<span style="color: var(--text-muted);"><i class="fa-solid fa-check"></i> Sin cambios (OK)</span>`;
+                    }
+                }
+                alertsHtml += '</div>';
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="font-family: monospace; font-weight: 600;">${emp.rut}</td>
+                        <td><span style="font-weight: 600; color: var(--text-main);">${emp.nombre}</span></td>
+                        <td style="text-align: center;">${statusBadge}</td>
+                        <td style="font-size: 12px; min-width: 140px; line-height: 1.2;">${ccText}</td>
+                        <td style="font-size: 12px; min-width: 140px; line-height: 1.2;">${cargoText}</td>
+                        <td style="font-size: 12px; min-width: 100px; line-height: 1.2;">${sedeText}</td>
+                        <td style="font-size: 12px; min-width: 110px; line-height: 1.2;">${afpText}</td>
+                        <td style="font-size: 12px; min-width: 110px; line-height: 1.2;">${saludText}</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 11px;">${diasAnt}</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 11px; font-weight: 600;">${diasAct}</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 11px; color: var(--text-muted);">${licAnt}</td>
+                        <td style="text-align: center; font-family: monospace; font-size: 11px; font-weight: 600; color: #ef4444;">${licAct}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${baseText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${gratText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${colText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${movText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${incText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${gestText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${permText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${respText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${descFeriText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${otrosHabText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${impuestoText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${apvAhorroText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px;">${alcanceText}</td>
+                        <td style="text-align: right; font-family: monospace; font-size: 11px; font-weight: 600;">${costoText}</td>
+                        <td>${alertsHtml}</td>
+                        <td style="text-align: center;">
+                            <button class="btn btn-sm" onclick="openMonthAuditDetail('${emp.rut}', ${emp.contrato})" style="padding: 4px 8px; font-size: 11px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border);">
+                                <i class="fa-solid fa-eye"></i> Detalle
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function openMonthAuditDetail(rut, contrato) {
+            const emp = monthAuditData.find(x => x.rut === rut && x.contrato === contrato);
+            if (!emp) return;
+            
+            document.getElementById('month-audit-modal-title').innerText = `Auditoría Comparativa: ${emp.nombre} (${emp.rut})`;
+            
+            const bodyAnt = document.getElementById('month-audit-modal-body-ant');
+            const bodyAct = document.getElementById('month-audit-modal-body-act');
+            
+            // Format column values for detail box
+            function formatField(label, valAnt, valAct, isCurrency = true) {
+                const displayAnt = isCurrency ? formatCLP(valAnt) : valAnt;
+                const displayAct = isCurrency ? formatCLP(valAct) : valAct;
+                
+                const hasDiff = valAnt !== valAct;
+                const styleAnt = hasDiff ? 'style="color: var(--text-muted); font-weight: 600;"' : '';
+                const styleAct = hasDiff ? (typeof valAnt === 'number' && valAct > valAnt ? 'style="color: #10b981; font-weight: 700;"' : 'style="color: #ef4444; font-weight: 700;"') : '';
+                
+                return {
+                    ant: `<div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--card-border); padding: 4px 0;"><span>${label}:</span><span ${styleAnt}>${displayAnt}</span></div>`,
+                    act: `<div style="display: flex; justify-content: space-between; border-bottom: 1px dashed var(--card-border); padding: 4px 0;"><span>${label}:</span><span ${styleAct}>${displayAct}</span></div>`
+                };
+            }
+            
+            // Generate rows
+            const rows = [];
+            rows.push(formatField('Días Trabajados', emp.dias_ant, emp.dias_act, false));
+            rows.push(formatField('Días Licencias Médicas', emp.licencias_ant, emp.licencias_act, false));
+            rows.push(formatField('Sueldo Base', emp.base_ant, emp.base_act));
+            rows.push(formatField('AFP Ficha/Cálculo', emp.afp_name_ant || 'N/A', emp.afp_name_act || 'N/A', false));
+            rows.push(formatField('Salud Ficha/Cálculo', emp.isapre_name_ant || 'N/A', emp.isapre_name_act || 'N/A', false));
+            
+            // Format health plans (Plan Salud)
+            const planAntDisplay = emp.plan_uf_ant ? `${emp.plan_uf_ant} UF` : (emp.plan_pesos_ant ? `$${emp.plan_pesos_ant}` : '7%');
+            const planActDisplay = emp.plan_uf_act ? `${emp.plan_uf_act} UF` : (emp.plan_pesos_act ? `$${emp.plan_pesos_act}` : '7%');
+            rows.push(formatField('Valor Plan Salud', planAntDisplay, planActDisplay, false));
+            
+            rows.push(formatField('Centro de Costo', emp.cc_ant || 'N/A', emp.cc_act || 'N/A', false));
+            rows.push(formatField('Cargo', emp.cargo_ant || 'N/A', emp.cargo_act || 'N/A', false));
+            
+            // Bonuses
+            rows.push({
+                ant: '<div style="font-weight: 700; margin-top: 10px; border-bottom: 1px solid var(--card-border); padding-bottom: 2px;">Bonificaciones (Haberes)</div>',
+                act: '<div style="font-weight: 700; margin-top: 10px; border-bottom: 1px solid var(--card-border); padding-bottom: 2px;">Bonificaciones (Haberes)</div>'
+            });
+            for (const [k, label] of Object.entries({
+                "incentivo": "Bono Incentivo",
+                "gestion": "Bono Gestión",
+                "permanencia": "Bono Permanencia",
+                "responsabilidad": "Bono Responsabilidad",
+                "descanso": "Bono Compens. Descanso",
+                "feriado": "Bono Compens. Feriado",
+                "estudios": "Bono Estudios",
+                "fallecimiento": "Bono Fallecimiento"
+            })) {
+                const valAnt = emp.breakdown_ant.bonos[k] || 0;
+                const valAct = emp.breakdown_act.bonos[k] || 0;
+                rows.push(formatField(label, valAnt, valAct));
+            }
+            
+            // Deductions
+            rows.push({
+                ant: '<div style="font-weight: 700; margin-top: 10px; border-bottom: 1px solid var(--card-border); padding-bottom: 2px;">Descuentos Legales</div>',
+                act: '<div style="font-weight: 700; margin-top: 10px; border-bottom: 1px solid var(--card-border); padding-bottom: 2px;">Descuentos Legales</div>'
+            });
+            for (const [k, label] of Object.entries({
+                "afp": "Cotización AFP",
+                "salud": "Cotización Salud",
+                "afc": "Seguro Cesantía (AFC)",
+                "impuesto": "Impuesto Único"
+            })) {
+                const valAnt = emp.breakdown_ant.descuentos[k] || 0;
+                const valAct = emp.breakdown_act.descuentos[k] || 0;
+                rows.push(formatField(label, valAnt, valAct));
+            }
+            
+            // Totals
+            rows.push({
+                ant: '<div style="font-weight: 700; margin-top: 10px; border-bottom: 1px solid var(--card-border); padding-bottom: 2px;">Totales de Liquidación</div>',
+                act: '<div style="font-weight: 700; margin-top: 10px; border-bottom: 1px solid var(--card-border); padding-bottom: 2px;">Totales de Liquidación</div>'
+            });
+            rows.push(formatField('Total Imponible', emp.total_imponible_ant, emp.total_imponible_act));
+            rows.push(formatField('Alcance Líquido', emp.alcance_ant, emp.alcance_act));
+            rows.push(formatField('Costo Empresa', emp.costo_ant, emp.costo_act));
+            
+            bodyAnt.innerHTML = rows.map(r => r.ant).join('');
+            bodyAct.innerHTML = rows.map(r => r.act).join('');
+            
+            document.getElementById('month-audit-modal').classList.add('active');
+        }
+
+        function closeMonthAuditModal() {
+            document.getElementById('month-audit-modal').classList.remove('active');
+        }
+
+        function exportMonthAuditToExcel() {
+            // Re-use current CSV generation/download pattern
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "RUT,Trabajador,Estado,Centro Costo Anterior,Centro Costo Actual,Sueldo Base Anterior,Sueldo Base Actual,Alcance Liquido Anterior,Alcance Liquido Actual,Costo Empresa Anterior,Costo Empresa Actual,Alertas\n";
+            
+            monthAuditData.forEach(emp => {
+                const alertsText = emp.alertas ? emp.alertas.map(a => a.mensaje).join(" | ") : "";
+                const row = [
+                    emp.rut,
+                    `"${emp.nombre.replace(/"/g, '""')}"`,
+                    emp.estado,
+                    `"${(emp.cc_ant || "").replace(/"/g, '""')}"`,
+                    `"${(emp.cc_act || "").replace(/"/g, '""')}"`,
+                    emp.base_ant,
+                    emp.base_act,
+                    emp.alcance_ant,
+                    emp.alcance_act,
+                    emp.costo_ant,
+                    emp.costo_act,
+                    `"${alertsText.replace(/"/g, '""')}"`
+                ];
+                csvContent += row.join(",") + "\n";
+            });
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `Auditoria_Variacion_Mensual_${currentPeriod}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         // --- FIN MÓDULO ANÁLISIS DE RENTA VARIABLE ---
     </script>
 
