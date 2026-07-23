@@ -313,11 +313,13 @@ def run_calculations_and_seed_db():
             if r["rex_isapre_name"]:
                 employee["isapre"] = r["rex_isapre_name"]
                 if "fona" not in r["rex_isapre_name"].lower():
-                    employee["cotizacion_uf"] = 0.0
-                    if 0 < r["rex_dias"] < 30:
-                        employee["cotizacion_pesos"] = round(r["rex_salud"] * 30.0 / r["rex_dias"])
-                    else:
-                        employee["cotizacion_pesos"] = r["rex_salud"]
+                    has_pactado = (r["cotizacion_uf"] is not None and r["cotizacion_uf"] > 0) or (r["cotizacion_pesos"] is not None and r["cotizacion_pesos"] > 0)
+                    if not has_pactado:
+                        employee["cotizacion_uf"] = 0.0
+                        if 0 < r["rex_dias"] < 30:
+                            employee["cotizacion_pesos"] = round(r["rex_salud"] * 30.0 / r["rex_dias"])
+                        else:
+                            employee["cotizacion_pesos"] = r["rex_salud"]
             if r["rex_tipo_contrato"]:
                 employee["tipo_contrato"] = r["rex_tipo_contrato"]
 

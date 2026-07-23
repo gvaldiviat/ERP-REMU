@@ -548,11 +548,16 @@ def calculate_liquidation(employee, inputs=None, params=None):
             elif str(end_date) < first_day_of_month:
                 is_active_full_month = False
                 
-        if is_active_full_month:
-            agreed_salud = round(isapre_uf * uf + isapre_pesos)
-        else:
+        licencia_dias = inputs.get("licencia_dias", 0) or 0
+        if not is_active_full_month:
             agreed_salud_prop = (isapre_uf * (dias_trabajados / 30.0)) * uf + isapre_pesos * (dias_trabajados / 30.0)
             agreed_salud = round(agreed_salud_prop)
+        elif licencia_dias > 0:
+            dias_cotizables = max(0, 30 - licencia_dias)
+            agreed_salud_prop = (isapre_uf * (dias_cotizables / 30.0)) * uf + isapre_pesos * (dias_cotizables / 30.0)
+            agreed_salud = round(agreed_salud_prop)
+        else:
+            agreed_salud = round(isapre_uf * uf + isapre_pesos)
             
         descuento_salud_total = max(descuento_salud_obligatoria, agreed_salud)
         
