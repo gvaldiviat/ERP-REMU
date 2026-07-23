@@ -13577,8 +13577,8 @@
                 
                 const diasAnt = emp.estado === 'Ingreso' ? '0' : emp.dias_ant;
                 const diasAct = emp.estado === 'Egreso' ? '0' : emp.dias_act;
-                const licAnt = emp.estado === 'Ingreso' ? '0' : emp.licencias_ant;
-                const licAct = emp.estado === 'Egreso' ? '0' : emp.licencias_act;
+                const licAnt = emp.estado === 'Ingreso' ? 0 : (emp.licencias_ant || 0);
+                const licAct = emp.estado === 'Egreso' ? 0 : (emp.licencias_act || 0);
                 
                 const baseText = formatMoM(emp.base_ant, emp.base_act);
                 const gratText = formatMoM(emp.grat_ant, emp.grat_act);

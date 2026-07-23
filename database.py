@@ -1057,7 +1057,8 @@ def load_planilla_entradas(custom_files=None):
     else:
         # Default files to scan
         files = [
-            os.path.join(BASE_DIR, "Datos de entrada", "PLANILA GENERAL JUNIO 2026.xlsx"),
+            os.path.join(BASE_DIR, "Datos de entrada", "PLANILLA GENERAL JULIO 2026.xlsx"),
+            os.path.join(BASE_DIR, "Datos de entrada", "PLANILLA GENERAL JUNIO 2026.xlsx"),
             os.path.join(BASE_DIR, "Datos de entrada", "PLANILLA GENERAL MAYO 2026.xlsx"),
             os.path.join(BASE_DIR, "Datos de entrada", "PLANILLA GENERAL ABRIL 2026.xlsx"),
             os.path.join(BASE_DIR, "Datos de entrada", "PLANILLA GENERAL MARZO 2026.xlsx"),

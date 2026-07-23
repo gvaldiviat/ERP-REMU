@@ -113,6 +113,7 @@ MONTHLY_PARAMETERS = {
     "2026-03": {"uf": 39841.72, "utm": 69889.00, "imm": 539000.00, "sis_tasa": 1.54, "mutual_tasa": 0.93, "tope_imponible_afp_uf": 90.0, "tope_imponible_afc_uf": 135.2},
     "2026-04": {"uf": 40120.20, "utm": 69889.00, "imm": 539000.00, "sis_tasa": 1.62, "mutual_tasa": 0.93, "tope_imponible_afp_uf": 90.0, "tope_imponible_afc_uf": 135.2},
     "2026-05": {"uf": 40610.69, "utm": 70588.00, "imm": 539000.00, "sis_tasa": 1.62, "mutual_tasa": 0.93, "tope_imponible_afp_uf": 90.0, "tope_imponible_afc_uf": 135.2},
+    "2026-07": {"uf": 40844.79, "utm": 71649.00, "imm": 553553.00, "sis_tasa": 2.00, "mutual_tasa": 0.93, "tope_imponible_afp_uf": 90.0, "tope_imponible_afc_uf": 135.2},
 }
 
 # Intenta cargar y sobrescribir con los parámetros dinámicos de Previred
@@ -124,6 +125,28 @@ try:
         print(f"[*] Indicadores Previred cargados dinámicamente: {', '.join(sorted(dynamic_params.keys()))}")
 except Exception as e:
     print(f"[!] Aviso: No se pudieron cargar los indicadores dinámicos de Previred: {e}")
+
+def get_monthly_params(period):
+    if not period:
+        return MONTHLY_PARAMETERS.get("2026-05").copy()
+    params = MONTHLY_PARAMETERS.get(period)
+    if params:
+        return params.copy()
+    try:
+        yr = int(period[:4])
+        mo = int(period[5:7])
+        for _ in range(12):
+            mo -= 1
+            if mo == 0:
+                mo = 12
+                yr -= 1
+            prev_p = f"{yr:04d}-{mo:02d}"
+            params = MONTHLY_PARAMETERS.get(prev_p)
+            if params:
+                return params.copy()
+    except Exception:
+        pass
+    return MONTHLY_PARAMETERS.get("2026-05").copy()
 
 def run_calculations_and_seed_db():
     print("Calculating liquidations for seeding historical liquidaciones table...")
@@ -270,7 +293,7 @@ def run_calculations_and_seed_db():
         
         rows_sorted = sorted(rows, key=lambda x: (str(x["rut"]), int(x["contrato"])))
         
-        params = MONTHLY_PARAMETERS.get(period, MONTHLY_PARAMETERS["2026-05"]).copy()
+        params = get_monthly_params(period)
         params["periodo"] = period
 
         count = 0
@@ -381,7 +404,7 @@ def run_calculations_and_seed_db():
 
             cursor.execute("""
             INSERT INTO liquidaciones (
-                rut, contrato, periodo, dias_trabajados, horas_extras, monto_horas_extras,
+                rut, contrato, periodo, dias_trabajados, sueldo_base, horas_extras, monto_horas_extras,
                 bono_descanso, bono_feriado, bono_incentivo, bono_responsabilidad, bono_gestion, bono_permanencia,
                 gratificacion, colacion, movilizacion, pasajes, traslados, bono_estudios, bono_fallecimiento,
                 total_imponible, total_no_imponible, total_haberes,
@@ -392,9 +415,9 @@ def run_calculations_and_seed_db():
                 asignacion_familiar, descuento_apvi, descuento_anticipo, descuento_ccaf_credito,
                 descuento_ccaf_prestamo, descuento_retencion_judicial, descuento_prestamos_empresa,
                 descuento_seguro_complementario, descuento_falp, total_descuentos_legales, total_descuentos_otros
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                r["rut"], r["contrato"], period, r["rex_dias"], 0, res["monto_horas_extras"],
+                r["rut"], r["contrato"], period, r["rex_dias"], res["sueldo_base_prop"], 0, res["monto_horas_extras"],
                 res["bono_descanso"], res["bono_feriado"], res["bono_incentivo"], res["bono_responsabilidad"], res["bono_gestion"], res["bono_permanencia"],
                 res["gratificacion"], res["colacion"], res["movilizacion"], res["pasajes"], res["traslados"], res["bono_estudios"], res["bono_fallecimiento"],
                 res["total_imponible"], res["total_no_imponible"], res["total_haberes"],
@@ -835,7 +858,7 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
                             
                             # Pack parameters
                             period_str = fecha_termino[:7]
-                            params = MONTHLY_PARAMETERS.get(period_str, MONTHLY_PARAMETERS.get("2026-05", {"uf": 40610.69, "imm": 539000.0}))
+                            params = get_monthly_params(period_str)
                             
                             # Pack inputs
                             inputs = {
@@ -1233,7 +1256,6 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
         return periods
 
     def get_month_comparison(self, periodo):
-        
         try:
             yr = int(periodo[:4])
             mo = int(periodo[5:7])
@@ -1342,15 +1364,28 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
                 "sede_act": r_act["sede"],
                 "dias_act": r_act["dias_trabajados"] or 0,
                 "licencias_act": r_act.get("licencia_dias") or 0.0,
-                "base_act": r_act["sueldo_base"],
-                "total_imponible_act": r_act["total_imponible"],
-                "alcance_act": r_act["alcance_liquido"],
-                "costo_act": r_act["costo_empresa"],
+                "base_act": r_act["sueldo_base"] or 0.0,
+                "total_imponible_act": r_act["total_imponible"] or 0.0,
+                "alcance_act": r_act["alcance_liquido"] or 0.0,
+                "costo_act": r_act["costo_empresa"] or 0.0,
                 "afp_name_act": r_act["afp_name"],
                 "isapre_name_act": r_act["isapre_name"],
                 "plan_uf_act": r_act.get("cotizacion_uf") or 0.0,
                 "plan_pesos_act": r_act.get("cotizacion_pesos") or 0.0,
                 "bonos_sum_act": bonos_act_val,
+                
+                "inc_act": r_act.get("bono_incentivo") or 0.0,
+                "gest_act": r_act.get("bono_gestion") or 0.0,
+                "perm_act": r_act.get("bono_permanencia") or 0.0,
+                "resp_act": r_act.get("bono_responsabilidad") or 0.0,
+                "desc_feri_act": (r_act.get("bono_descanso") or 0.0) + (r_act.get("bono_feriado") or 0.0),
+                "otros_hab_act": (r_act.get("bono_estudios") or 0.0) + (r_act.get("bono_fallecimiento") or 0.0),
+                "grat_act": r_act.get("gratificacion") or 0.0,
+                "col_act": r_act.get("colacion") or 0.0,
+                "mov_act": r_act.get("movilizacion") or 0.0,
+                "impuesto_act": r_act.get("descuento_impuesto") or r_act.get("impuesto") or 0.0,
+                "apvi_act": r_act.get("descuento_apvi") or r_act.get("apvi") or 0.0,
+                "ahorro_afp_act": 0.0,
                 
                 # Previous values
                 "cc_ant": r_ant["centro_costo"] if r_ant else None,
@@ -1368,81 +1403,18 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
                 "plan_pesos_ant": r_ant.get("cotizacion_pesos") or 0.0 if r_ant else 0.0,
                 "bonos_sum_ant": bonos_ant_val,
                 
-                # Detailed breakdown for modal comparisons
-                "breakdown_act": {
-                    "bonos": {
-                        "incentivo": r_act.get("bono_incentivo") or 0.0,
-                        "gestion": r_act.get("bono_gestion") or 0.0,
-                        "permanencia": r_act.get("bono_permanencia") or 0.0,
-                        "responsabilidad": r_act.get("bono_responsabilidad") or 0.0,
-                        "descanso": r_act.get("bono_descanso") or 0.0,
-                        "feriado": r_act.get("bono_feriado") or 0.0,
-                        "estudios": r_act.get("bono_estudios") or 0.0,
-                        "fallecimiento": r_act.get("bono_fallecimiento") or 0.0,
-                    },
-                    "descuentos": {
-                        "afp": r_act.get("descuento_afp") or 0.0,
-                        "salud": r_act.get("descuento_salud_total") or 0.0,
-                        "afc": r_act.get("descuento_afc") or 0.0,
-                        "impuesto": r_act.get("descuento_impuesto") or 0.0,
-                    }
-                },
-                "breakdown_ant": {
-                    "bonos": {
-                        "incentivo": r_ant.get("bono_incentivo") or 0.0 if r_ant else 0.0,
-                        "gestion": r_ant.get("bono_gestion") or 0.0 if r_ant else 0.0,
-                        "permanencia": r_ant.get("bono_permanencia") or 0.0 if r_ant else 0.0,
-                        "responsabilidad": r_ant.get("bono_responsabilidad") or 0.0 if r_ant else 0.0,
-                        "descanso": r_ant.get("bono_descanso") or 0.0 if r_ant else 0.0,
-                        "feriado": r_ant.get("bono_feriado") or 0.0 if r_ant else 0.0,
-                        "estudios": r_ant.get("bono_estudios") or 0.0 if r_ant else 0.0,
-                        "fallecimiento": r_ant.get("bono_fallecimiento") or 0.0 if r_ant else 0.0,
-                    },
-                    "descuentos": {
-                        "afp": r_ant.get("descuento_afp") or 0.0 if r_ant else 0.0,
-                        "salud": r_ant.get("descuento_salud_total") or 0.0 if r_ant else 0.0,
-                        "afc": r_ant.get("descuento_afc") or 0.0 if r_ant else 0.0,
-                        "impuesto": r_ant.get("descuento_impuesto") or 0.0 if r_ant else 0.0,
-                    }
-                }
-            }
-        
-        # Process current month employees
-        for r_act in rows_act:
-            key = (r_act["rut"], r_act["contrato"])
-            active_ruts_act.add(key)
-            
-            r_ant = all_ant_details.get(key)
-            
-            item = {
-                "rut": r_act["rut"],
-                "contrato": r_act["contrato"],
-                "nombre": r_act["nombre"],
-                "estado": "Activo" if r_ant else "Ingreso",
-                
-                # Current values
-                "cc_act": r_act["centro_costo"],
-                "cargo_act": r_act["cargo"],
-                "sede_act": r_act["sede"],
-                "dias_act": r_act["dias_trabajados"],
-                "base_act": r_act["sueldo_base"],
-                "total_imponible_act": r_act["total_imponible"],
-                "alcance_act": r_act["alcance_liquido"],
-                "costo_act": r_act["costo_empresa"],
-                "afp_name_act": r_act["afp_name"],
-                "isapre_name_act": r_act["isapre_name"],
-                
-                # Previous values
-                "cc_ant": r_ant["centro_costo"] if r_ant else None,
-                "cargo_ant": r_ant["cargo"] if r_ant else None,
-                "sede_ant": r_ant["sede"] if r_ant else None,
-                "dias_ant": r_ant["dias_trabajados"] if r_ant else 0,
-                "base_ant": r_ant["sueldo_base"] if r_ant else 0,
-                "total_imponible_ant": r_ant["total_imponible"] if r_ant else 0,
-                "alcance_ant": r_ant["alcance_liquido"] if r_ant else 0,
-                "costo_ant": r_ant["costo_empresa"] if r_ant else 0,
-                "afp_name_ant": r_ant["afp_name"] if r_ant else None,
-                "isapre_name_ant": r_ant["isapre_name"] if r_ant else None,
+                "inc_ant": r_ant.get("bono_incentivo") or 0.0 if r_ant else 0.0,
+                "gest_ant": r_ant.get("bono_gestion") or 0.0 if r_ant else 0.0,
+                "perm_ant": r_ant.get("bono_permanencia") or 0.0 if r_ant else 0.0,
+                "resp_ant": r_ant.get("bono_responsabilidad") or 0.0 if r_ant else 0.0,
+                "desc_feri_ant": ((r_ant.get("bono_descanso") or 0.0) + (r_ant.get("bono_feriado") or 0.0)) if r_ant else 0.0,
+                "otros_hab_ant": ((r_ant.get("bono_estudios") or 0.0) + (r_ant.get("bono_fallecimiento") or 0.0)) if r_ant else 0.0,
+                "grat_ant": r_ant.get("gratificacion") or 0.0 if r_ant else 0.0,
+                "col_ant": r_ant.get("colacion") or 0.0 if r_ant else 0.0,
+                "mov_ant": r_ant.get("movilizacion") or 0.0 if r_ant else 0.0,
+                "impuesto_ant": (r_ant.get("descuento_impuesto") or r_ant.get("impuesto") or 0.0) if r_ant else 0.0,
+                "apvi_ant": (r_ant.get("descuento_apvi") or r_ant.get("apvi") or 0.0) if r_ant else 0.0,
+                "ahorro_afp_ant": 0.0,
                 
                 # Detailed breakdown for modal comparisons
                 "breakdown_act": {
@@ -1545,18 +1517,33 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
                     "nombre": ant_details["nombre"],
                     "estado": "Egreso",
                     
-                    "cc_act": None, "cargo_act": None, "sede_act": None, "dias_act": 0, "base_act": 0, "total_imponible_act": 0, "alcance_act": 0, "costo_act": 0, "afp_name_act": None, "isapre_name_act": None,
+                    "cc_act": None, "cargo_act": None, "sede_act": None, "dias_act": 0, "base_act": 0.0, "total_imponible_act": 0.0, "alcance_act": 0.0, "costo_act": 0.0, "afp_name_act": None, "isapre_name_act": None,
                     
                     "cc_ant": ant_details["centro_costo"],
                     "cargo_ant": ant_details["cargo"],
                     "sede_ant": ant_details["sede"],
                     "dias_ant": ant_details["dias_trabajados"] or 0,
-                    "base_ant": ant_details["sueldo_base"] or 0,
-                    "total_imponible_ant": ant_details["total_imponible"] or 0,
-                    "alcance_ant": ant_details["alcance_liquido"] or 0,
-                    "costo_ant": ant_details["costo_empresa"] or 0,
+                    "base_ant": ant_details["sueldo_base"] or 0.0,
+                    "total_imponible_ant": ant_details["total_imponible"] or 0.0,
+                    "alcance_ant": ant_details["alcance_liquido"] or 0.0,
+                    "costo_ant": ant_details["costo_empresa"] or 0.0,
                     "afp_name_ant": ant_details["afp_name"],
                     "isapre_name_ant": ant_details["isapre_name"],
+                    
+                    "inc_act": 0.0, "gest_act": 0.0, "perm_act": 0.0, "resp_act": 0.0, "desc_feri_act": 0.0, "otros_hab_act": 0.0, "grat_act": 0.0, "col_act": 0.0, "mov_act": 0.0, "impuesto_act": 0.0, "apvi_act": 0.0, "ahorro_afp_act": 0.0,
+                    
+                    "inc_ant": ant_details.get("bono_incentivo") or 0.0,
+                    "gest_ant": ant_details.get("bono_gestion") or 0.0,
+                    "perm_ant": ant_details.get("bono_permanencia") or 0.0,
+                    "resp_ant": ant_details.get("bono_responsabilidad") or 0.0,
+                    "desc_feri_ant": (ant_details.get("bono_descanso") or 0.0) + (ant_details.get("bono_feriado") or 0.0),
+                    "otros_hab_ant": (ant_details.get("bono_estudios") or 0.0) + (ant_details.get("bono_fallecimiento") or 0.0),
+                    "grat_ant": ant_details.get("gratificacion") or 0.0,
+                    "col_ant": ant_details.get("colacion") or 0.0,
+                    "mov_ant": ant_details.get("movilizacion") or 0.0,
+                    "impuesto_ant": ant_details.get("descuento_impuesto") or ant_details.get("impuesto") or 0.0,
+                    "apvi_ant": ant_details.get("descuento_apvi") or ant_details.get("apvi") or 0.0,
+                    "ahorro_afp_ant": 0.0,
                     
                     "breakdown_act": {
                         "bonos": {b: 0.0 for b in ["incentivo", "gestion", "permanencia", "responsabilidad", "descanso", "feriado", "estudios", "fallecimiento"]},
@@ -1912,7 +1899,7 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
                 "rex_costo": rex_dict.get("costo_empresa", 0)
             },
             "comparison_raw": rex_dict,
-            "parameters": MONTHLY_PARAMETERS.get(periodo, MONTHLY_PARAMETERS.get("2026-05", {}))
+            "parameters": get_monthly_params(periodo)
         }
 
     def get_analytics(self, periodo):
@@ -2865,7 +2852,7 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
             
         # 3. Monthly parameters based on termination date
         period_str = fecha_termino_str[:7]
-        params = MONTHLY_PARAMETERS.get(period_str, MONTHLY_PARAMETERS.get("2026-05", {"uf": 40610.69, "imm": 539000.0}))
+        params = get_monthly_params(period_str)
         uf_val = params.get("uf", 40610.69)
         imm_val = params.get("imm", 539000.0)
         limit_clp = round(90.0 * uf_val)
