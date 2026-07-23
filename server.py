@@ -535,10 +535,14 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_json(self.get_periods())
         elif path == "/api/history":
             self.send_json(self.get_history())
-        elif path == "/api/audit/alerts":
+        elif path == "/api/alertas" or path == "/api/audit/alerts":
             self.send_json(self.get_audit_alerts(periodo))
         elif path == "/api/month-comparison":
             self.send_json(self.get_month_comparison(periodo))
+        elif path == "/api/imposiciones":
+            self.send_json(self.get_imposiciones(periodo))
+        elif path == "/api/imposiciones/historial":
+            self.send_json(self.get_imposiciones_historial())
         elif path == "/api/process-comparison":
             base_run = query_params.get("base_run", [None])[0]
             compare_run = query_params.get("compare_run", [None])[0]
@@ -1574,6 +1578,109 @@ class DashboardRequestHandler(http.server.BaseHTTPRequestHandler):
             "periodo_anterior": periodo_anterior,
             "comparisons": comparison_list
         }
+
+    def get_imposiciones(self, period):
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        params = get_monthly_params(period)
+        
+        cursor.execute("""
+            SELECT 
+                l.rut, 
+                e.nombre,
+                e.afp as emp_afp,
+                e.isapre as emp_isapre,
+                l.total_imponible,
+                l.descuento_afp as calc_afp_prev,
+                l.aporte_sis as calc_sis,
+                (l.costo_empresa - l.total_haberes - l.aporte_sis - l.aporte_mutual - l.aporte_afc) as calc_fapp,
+                l.descuento_salud_total as calc_salud,
+                l.descuento_afc as calc_afc_trab,
+                l.aporte_afc as calc_afc_emp,
+                l.aporte_mutual as calc_mutual,
+                c.afp as rex_afp_name,
+                c.isapre as rex_isapre_name,
+                c.cotizacion_afp as rex_afp_prev,
+                c.sis as rex_sis,
+                c.cotizacion_salud as rex_salud,
+                c.seguro_cesantia_trab as rex_afc_trab,
+                c.seguro_cesantia_emp as rex_afc_emp,
+                c.mutual as rex_mutual
+            FROM liquidaciones l
+            JOIN empleados e ON l.rut = e.rut AND l.contrato = e.contrato
+            LEFT JOIN rex_comparisons c ON l.rut = c.rut AND l.contrato = c.contrato AND l.periodo = c.periodo
+            WHERE l.periodo = ?
+        """, (period,))
+        
+        rows = []
+        for r in cursor.fetchall():
+            d = dict(r)
+            d["calc_fapp"] = max(0, d["calc_fapp"])
+            rows.append(d)
+            
+        conn.close()
+        
+        return {
+            "data": rows,
+            "parameters": params,
+            "previred_file_totals": None
+        }
+
+    def get_imposiciones_historial(self):
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                periodo,
+                descuento_afp,
+                aporte_sis,
+                costo_empresa,
+                total_haberes,
+                aporte_mutual,
+                aporte_afc,
+                descuento_salud_total,
+                descuento_afc,
+                aporte_afc
+            FROM liquidaciones
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        periods_data = {}
+        for r in rows:
+            p = r["periodo"]
+            if not p:
+                continue
+            if p not in periods_data:
+                periods_data[p] = {
+                    "periodo": p,
+                    "qty": 0,
+                    "total_afp_trab": 0.0,
+                    "total_sis": 0.0,
+                    "total_fapp": 0.0,
+                    "total_salud_trab": 0.0,
+                    "total_afc_trab": 0.0,
+                    "total_afc_emp": 0.0,
+                    "total_mutual": 0.0
+                }
+            
+            fapp = max(0.0, (r["costo_empresa"] or 0) - (r["total_haberes"] or 0) - (r["aporte_sis"] or 0) - (r["aporte_mutual"] or 0) - (r["aporte_afc"] or 0))
+            
+            periods_data[p]["qty"] += 1
+            periods_data[p]["total_afp_trab"] += r["descuento_afp"] or 0
+            periods_data[p]["total_sis"] += r["aporte_sis"] or 0
+            periods_data[p]["total_fapp"] += fapp
+            periods_data[p]["total_salud_trab"] += r["descuento_salud_total"] or 0
+            periods_data[p]["total_afc_trab"] += r["descuento_afc"] or 0
+            periods_data[p]["total_afc_emp"] += r["aporte_afc"] or 0
+            periods_data[p]["total_mutual"] += r["aporte_mutual"] or 0
+            
+        sorted_hist = sorted(periods_data.values(), key=lambda x: x["periodo"])
+        return sorted_hist
 
     def get_summary(self, periodo):
         conn = sqlite3.connect(DB_PATH)
