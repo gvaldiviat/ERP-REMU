@@ -1,0 +1,33 @@
+# Ignorar control de versiones
+.git
+.gitignore
+
+# Ignorar configuración de IDE
+.vscode
+.DS_Store
+
+# Ignorar archivos compilados de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignorar bases de datos locales (comentado para incluir db pre-calculada)
+# *.db
+*.sqlite
+*.sqlite3
+
+# Ignorar planillas de datos y PDFs locales (comentado para incluir planillas y previred en la imagen)
+# *.xlsx
+# *.csv
+# *.pdf
+# *.txt
+!requirements.txt
+
+# Ignorar logs y archivos temporales
+*.log
+*.tmp
+~*
+
+# Ignorar carpetas de desarrollo locales
+scratch/
