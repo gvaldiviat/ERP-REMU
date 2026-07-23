@@ -1353,7 +1353,10 @@ def load_planilla_entradas(custom_files=None):
                             if not period_val:
                                 period_val = "2026-06" if "junio" in fname_lower else "2026-05"
                                 
-                        detail_msg = f"Concepto no mapeado '{header}' detectado con monto ${val:,.0f}."
+                        if "uf" in header.lower():
+                            detail_msg = f"Concepto no mapeado '{header}' detectado con valor {val:.4f} UF."
+                        else:
+                            detail_msg = f"Concepto no mapeado '{header}' detectado con monto ${val:,.0f}."
                         cursor.execute("""
                             INSERT OR IGNORE INTO alertas_auditoria (rut, contrato, periodo, tipo_alerta, detalle) VALUES (?, ?, ?, ?, ?)
                         """, (rut, contrato, period_val, "Concepto No Mapeado", detail_msg))
