@@ -7609,7 +7609,7 @@
                     if (c.movilizacion > 0) addStubRow(habTable, "Asignación Movilización", c.movilizacion);
                     if (c.pasajes > 0) addStubRow(habTable, "Asignación Pasajes", c.pasajes);
                     if (c.traslados > 0) addStubRow(habTable, "Asignación Traslados (viático)", c.traslados);
-                    if (c.bono_estudios > 0) addStubRow(habTable, "Bono Estudios", c.bono_estudios);
+                    if (c.bono_estudios > 0) addStubRow(habTable, "Bono Estudios / Otros No Imp.", c.bono_estudios);
                     if (c.bono_fallecimiento > 0) addStubRow(habTable, "Bono Fallecimiento", c.bono_fallecimiento);
                     if (c.asignacion_familiar > 0) addStubRow(habTable, "Asignación Familiar", c.asignacion_familiar);
 
@@ -10170,7 +10170,7 @@
                         { name: "Asignación Movilización", calc: c.movilizacion, rex: cr.movilizacion, is_money: true },
                         { name: "Pasajes", calc: c.pasajes, rex: cr.pasajes, is_money: true },
                         { name: "Traslados", calc: c.traslados, rex: cr.traslados, is_money: true },
-                        { name: "Bono Estudios", calc: c.bono_estudios, rex: cr.bono_estudios, is_money: true },
+                        { name: "Bono Estudios / Otros No Imp.", calc: c.bono_estudios, rex: cr.bono_estudios, is_money: true },
                         { name: "Bono Fallecimiento", calc: c.bono_fallecimiento, rex: cr.bono_fallecimiento, is_money: true },
                         { name: "Días Trabajados", calc: c.dias_trabajados, rex: cr.dias_trabajados, is_money: false },
                         { name: "Días Licencia Médica", calc: c.licencia_dias, rex: cr.licencia_dias, is_money: false },
@@ -10848,7 +10848,7 @@
                     { name: 'bono_responsabilidad', label: 'Bono Responsabilidad' },
                     { name: 'bono_gestion', label: 'Bono Gestión' },
                     { name: 'bono_permanencia', label: 'Bono Permanencia' },
-                    { name: 'bono_estudios', label: 'Bono Estudios' },
+                    { name: 'bono_estudios', label: 'Bono Estudios / Otros No Imp.' },
                     { name: 'bono_fallecimiento', label: 'Bono Fallecimiento' }
                 ];
                 bonosAComparar.forEach(b => {
@@ -13734,7 +13734,7 @@
                 "responsabilidad": "Bono Responsabilidad",
                 "descanso": "Bono Compens. Descanso",
                 "feriado": "Bono Compens. Feriado",
-                "estudios": "Bono Estudios",
+                "estudios": "Bono Estudios / Otros No Imp.",
                 "fallecimiento": "Bono Fallecimiento"
             })) {
                 const valAnt = emp.breakdown_ant.bonos[k] || 0;
