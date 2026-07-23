@@ -10568,25 +10568,25 @@
                     // Count Diff
                     const countDiffEl = document.getElementById('proc-kpi-count-diff');
                     countDiffEl.innerText = (s.count_diff > 0 ? '+' : '') + s.count_diff;
-                    countDiffEl.style.color = s.count_diff === 0 ? 'var(--text-main)' : (s.count_diff > 0 ? '#10b981' : '#ef4444');
+                    countDiffEl.style.color = s.count_diff === 0 ? 'var(--text-main)' : (s.count_diff > 0 ? '#ef4444' : '#10b981');
                     document.getElementById('proc-kpi-count-detail').innerText = `${s.prev_count} anterior vs ${s.curr_count} actual`;
 
                     // Imponible Diff
                     const impDiffEl = document.getElementById('proc-kpi-imponible-diff');
                     impDiffEl.innerText = (s.imponible_diff > 0 ? '+' : '') + formatCLP(s.imponible_diff);
-                    impDiffEl.style.color = s.imponible_diff === 0 ? 'var(--text-main)' : (s.imponible_diff > 0 ? '#10b981' : '#ef4444');
+                    impDiffEl.style.color = s.imponible_diff === 0 ? 'var(--text-main)' : (s.imponible_diff > 0 ? '#ef4444' : '#10b981');
                     document.getElementById('proc-kpi-imponible-detail').innerText = `${formatCLP(s.prev_imponible)} vs ${formatCLP(s.curr_imponible)}`;
 
                     // Liquido Diff
                     const liqDiffEl = document.getElementById('proc-kpi-liquido-diff');
                     liqDiffEl.innerText = (s.liquido_diff > 0 ? '+' : '') + formatCLP(s.liquido_diff);
-                    liqDiffEl.style.color = s.liquido_diff === 0 ? 'var(--text-main)' : (s.liquido_diff > 0 ? '#10b981' : '#ef4444');
+                    liqDiffEl.style.color = s.liquido_diff === 0 ? 'var(--text-main)' : (s.liquido_diff > 0 ? '#ef4444' : '#10b981');
                     document.getElementById('proc-kpi-liquido-detail').innerText = `${formatCLP(s.prev_liquido)} vs ${formatCLP(s.curr_liquido)}`;
 
                     // Costo Diff
                     const costDiffEl = document.getElementById('proc-kpi-costo-diff');
                     costDiffEl.innerText = (s.costo_diff > 0 ? '+' : '') + formatCLP(s.costo_diff);
-                    costDiffEl.style.color = s.costo_diff === 0 ? 'var(--text-main)' : (s.costo_diff > 0 ? '#10b981' : '#ef4444');
+                    costDiffEl.style.color = s.costo_diff === 0 ? 'var(--text-main)' : (s.costo_diff > 0 ? '#ef4444' : '#10b981');
                     document.getElementById('proc-kpi-costo-detail').innerText = `${formatCLP(s.prev_costo)} vs ${formatCLP(s.curr_costo)}`;
 
                     // Populate tables
@@ -10674,9 +10674,9 @@
                 const liqDiffStr = (liqDiff === 0 ? '$0' : (liqDiff > 0 ? '+' : '') + liqDiff.toLocaleString('es-CL'));
                 const costDiffStr = (costDiff === 0 ? '$0' : (costDiff > 0 ? '+' : '') + costDiff.toLocaleString('es-CL'));
 
-                const impClass = impDiff === 0 ? '' : (impDiff > 0 ? 'color: #10b981; font-weight:600;' : 'color: #ef4444;');
-                const liqClass = liqDiff === 0 ? '' : (liqDiff > 0 ? 'color: #10b981; font-weight:600;' : 'color: #ef4444;');
-                const costClass = costDiff === 0 ? '' : (costDiff > 0 ? 'color: #10b981; font-weight:600;' : 'color: #ef4444;');
+                const impClass = impDiff === 0 ? '' : (impDiff > 0 ? 'color: #ef4444; font-weight:600;' : 'color: #10b981;');
+                const liqClass = liqDiff === 0 ? '' : (liqDiff > 0 ? 'color: #ef4444; font-weight:600;' : 'color: #10b981;');
+                const costClass = costDiff === 0 ? '' : (costDiff > 0 ? 'color: #ef4444; font-weight:600;' : 'color: #10b981;');
 
                 let diffLabels = [];
                 if (emp.diffs) {
