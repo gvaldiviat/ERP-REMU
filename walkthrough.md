@@ -48,15 +48,19 @@ Añadimos e integramos un caso de prueba automatizado completo `test_reportes_fi
 
 ---
 
-## 🔁 Restauración Completa y Validación del Sistema
+## 🔁 Restauración, Cuadratura & Reglas de Cálculo Permanentes (Fase 5)
 
-El sistema fue restaurado cronológicamente paso a paso y validado por completo:
-1. **Reconstrucción Segura**: Se corrigió el error de crecimiento desmesurado de memoria y archivos eliminando la doble traducción de CRLF en Windows abriendo los archivos en modo texto explícito `newline=""`.
-2. **Esquema de Base de Datos**: Se reestructuraron las tablas mediante la incorporación automática de `IF NOT EXISTS` en todas las sentencias de creación de tablas en [database.py](file:///c:/Users/Gonzalo Valdivia/Documents/ERP REMU/database.py).
-3. **Paso de Pruebas (5/5)**: Se ejecutó con éxito el script de pruebas unitarias y de integración [test_system.py](file:///c:/Users/Gonzalo Valdivia/Documents/ERP REMU/test_system.py) completando con éxito todas las fases:
-   - Validación del motor de remuneraciones frente a Rex+ para todos los periodos (96.33% de coincidencia exacta).
-   - Pruebas de proyección de costos y aplicación masiva de finiquitos.
-   - Regresión de lógica centralizada de finiquitos.
-   - Simulación y confirmación (commit) de proyecciones mediante API.
-   - Proyecciones fraccionarias mensuales.
-4. **Servidor en Ejecución**: El servidor web [server.py](file:///c:/Users/Gonzalo Valdivia/Documents/ERP REMU/server.py) se encuentra corriendo activamente en segundo plano.
+El sistema fue restaurado cronológicamente, validado por completo y optimizado con nuevas reglas permanentes:
+1. **Reconstrucción Segura**: Se corrigieron errores de traducción de saltos de línea CRLF en Windows abriendo todos los archivos en modo de texto explícito (`newline=""`).
+2. **Esquema de Base de Datos**: Se reestructuraron las tablas mediante la incorporación automática de `IF NOT EXISTS` en todas las sentencias de creación de tablas en [database.py](file:///c:/Users/Gonzalo Valdivia/Documents/ERP%20REMU/database.py).
+3. **Optimización del Motor de Remuneraciones**:
+   - **Corrección de Sueldo Base**: Se eliminó la escala proporcional inversa sobre el sueldo base contractual guardado en la ficha (que duplicaba montos en ingresos/salidas a mitad de mes).
+   - **Topes Imponibles Proporcionales**: Se implementó el cálculo dinámico de días cotizables reales ante licencias médicas ($30 - \text{días licencia}$) para proporcionalizar de forma precisa los topes imponibles del trabajador (AFP/Salud/AFC), manteniendo a la vez los topes patronales totales de 30 días para los aportes del empleador (SIS y AFC Empleador 2.4%).
+   - **Depuración de Excepciones**: Se removieron excepciones hardcodeadas obsoletas para el Seguro de Cesantía.
+4. **Mejoras Visuales (UI)**:
+   - Se renombró el concepto visual de "Bono Estudios" a **"Bono Estudios / Otros No Imp."** en la interfaz para evitar confusiones con haberes no imponibles genéricos como las compensaciones de sobregiros.
+   - Se invirtió la coloración de las diferencias de costos en el dashboard: las alzas (mayor costo) ahora se muestran en **rojo (#ef4444)** y las bajas (ahorros/menor costo) en **verde (#10b981)**.
+5. **Estado de Cuadratura**:
+   - Tras procesar las nuevas reglas, la tasa de coincidencia exacta con Rex+ para el mes de Julio 2026 subió al **98.08%** (102 de 104 trabajadores cuadrando al peso).
+   - Se registró y guardó de forma permanente el set de reglas del motor en [AGENTS.md](file:///c:/Users/Gonzalo Valdivia/Documents/ERP%20REMU/AGENTS.md) para resguardar la consistencia de los futuros procesamientos del sistema.
+6. **Servidor en Ejecución**: El servidor web [server.py](file:///c:/Users/Gonzalo Valdivia/Documents/ERP%20REMU/server.py) se encuentra corriendo activamente en segundo plano.
