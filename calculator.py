@@ -477,12 +477,15 @@ def calculate_liquidation(employee, inputs=None, params=None):
     licencia_dias = inputs.get("licencia_dias", 0) or employee.get("licencia_dias", 0) or 0
     dias_cotizables = max(0, 30 - licencia_dias) if licencia_dias > 0 else dias_trabajados
     
+    tope_afp_clp_employer = round(tope_afp_uf * uf)
+    tope_afc_clp_employer = round(tope_afc_uf * uf)
+    
     if dias_cotizables < 30:
         tope_afp_clp = round(tope_afp_uf * uf * (dias_cotizables / 30.0))
         tope_afc_clp = round(tope_afc_uf * uf * (dias_cotizables / 30.0))
     else:
-        tope_afp_clp = round(tope_afp_uf * uf)
-        tope_afc_clp = round(tope_afc_uf * uf)
+        tope_afp_clp = tope_afp_clp_employer
+        tope_afc_clp = tope_afc_clp_employer
     
     # Move afp_rate definition up to allow deriving afecto_afp when descuento_afp is present
     afp_key = clean_afp_name(employee.get("afp", ""))
@@ -744,8 +747,8 @@ def calculate_liquidation(employee, inputs=None, params=None):
         daily_rate = sueldo_base_pactado / 30.0
         proj_base = round(daily_rate * min(30, licencia_dias))
         
-    base_patronal_afp = min(total_imponible + proj_base, tope_afp_clp)
-    base_patronal_afc = min(total_imponible + proj_base, tope_afc_clp)
+    base_patronal_afp = min(total_imponible + proj_base, tope_afp_clp_employer)
+    base_patronal_afc = min(total_imponible + proj_base, tope_afc_clp_employer)
     
     aporte_sis = round(base_patronal_afp * (tasa_sis / 100.0))
     
