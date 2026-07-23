@@ -473,8 +473,16 @@ def calculate_liquidation(employee, inputs=None, params=None):
     total_imponible = imponible_sin_grat + gratificacion
     
     # 8. Topes Imponibles
-    # AFP and Salud cap
-    tope_afp_clp = round(tope_afp_uf * uf)
+    # AFP and Salud cap (proportional to cotizable days under Chilean Previred rules)
+    licencia_dias = inputs.get("licencia_dias", 0) or employee.get("licencia_dias", 0) or 0
+    dias_cotizables = max(0, 30 - licencia_dias) if licencia_dias > 0 else dias_trabajados
+    
+    if dias_cotizables < 30:
+        tope_afp_clp = round(tope_afp_uf * uf * (dias_cotizables / 30.0))
+        tope_afc_clp = round(tope_afc_uf * uf * (dias_cotizables / 30.0))
+    else:
+        tope_afp_clp = round(tope_afp_uf * uf)
+        tope_afc_clp = round(tope_afc_uf * uf)
     
     # Move afp_rate definition up to allow deriving afecto_afp when descuento_afp is present
     afp_key = clean_afp_name(employee.get("afp", ""))
@@ -490,8 +498,6 @@ def calculate_liquidation(employee, inputs=None, params=None):
     else:
         afecto_afp = min(total_imponible, tope_afp_clp)
     
-    # AFC cap
-    tope_afc_clp = round(tope_afc_uf * uf)
     afecto_cesantia = min(total_imponible, tope_afc_clp)
     
     # 9. Descuentos Previsionales
@@ -567,8 +573,6 @@ def calculate_liquidation(employee, inputs=None, params=None):
             
     contrato_start = employee.get("fecha_inicio_contrato", "")
     afc_incorporacion = raw_dict.get("Fecha inc. Seguro Cesa.", "")
-    if employee.get("rut") == "13419327-1":
-        afc_incorporacion = "2013-04-09"
     
     afc_start_date = contrato_start
     if afc_incorporacion and len(str(afc_incorporacion)) >= 10:
