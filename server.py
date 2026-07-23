@@ -300,10 +300,7 @@ def run_calculations_and_seed_db():
         for r in rows_sorted:
             employee = dict(r)
             if r["sueldo_base"] and r["sueldo_base"] > 0:
-                if r["rex_dias"] > 0:
-                    employee["sueldo_base"] = round(r["sueldo_base"] * 30.0 / r["rex_dias"])
-                else:
-                    employee["sueldo_base"] = r["sueldo_base"]
+                employee["sueldo_base"] = r["sueldo_base"]
             else:
                 base_sb = r["rex_sueldo_base"]
                 if r["rex_dias"] > 0:
