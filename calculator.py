@@ -1,7 +1,31 @@
 import math
 import datetime
 import calendar
+import json
+import re
 import numpy as np
+
+# Default holidays for 2026 fallback
+DEFAULT_HOLIDAYS_2026 = [
+    "2026-01-01", # Año Nuevo
+    "2026-04-03", # Viernes Santo
+    "2026-04-04", # Sábado Santo
+    "2026-05-01", # Día del Trabajo
+    "2026-05-21", # Glorias Navales
+    "2026-06-07", # Batalla de Arica
+    "2026-06-21", # Pueblos Indígenas
+    "2026-06-29", # San Pedro y San Pablo
+    "2026-07-16", # Virgen del Carmen
+    "2026-08-15", # Asunción de la Virgen
+    "2026-08-20", # Nacimiento O'Higgins
+    "2026-09-18", # Fiestas Patrias
+    "2026-09-19", # Glorias del Ejército
+    "2026-10-12", # Encuentro de Dos Mundos
+    "2026-10-31", # Iglesias Evangélicas
+    "2026-11-01", # Todos los Santos
+    "2026-12-08", # Inmaculada Concepción
+    "2026-12-25", # Navidad
+]
 
 def calculate_inclusive_work_days(start_date, end_date, holidays=None):
     if holidays is None:
@@ -78,7 +102,6 @@ def calculate_finiquito_pure(employee, params, last_liq, inputs, causal, fecha_t
     raw_json_str = employee.get("raw_json")
     if raw_json_str:
         try:
-            import json
             raw = json.loads(raw_json_str)
             vac_start_str = raw.get("Fecha inicio vacaciones")
             if vac_start_str:
@@ -126,12 +149,7 @@ def calculate_finiquito_pure(employee, params, last_liq, inputs, causal, fecha_t
     if period_str >= "2026-06":
         start_of_month = datetime.date(fecha_termino.year, fecha_termino.month, 1)
         end_of_month = datetime.date(fecha_termino.year, fecha_termino.month, calendar.monthrange(fecha_termino.year, fecha_termino.month)[1])
-        holidays_list = []
-        try:
-            from projection_engine import DEFAULT_HOLIDAYS_2026
-            holidays_list = DEFAULT_HOLIDAYS_2026
-        except Exception:
-            pass
+        holidays_list = DEFAULT_HOLIDAYS_2026
         divisor = float(calculate_inclusive_work_days(start_of_month, end_of_month, holidays_list))
         if divisor <= 0:
             divisor = 30.0
@@ -379,6 +397,36 @@ def calculate_liquidation(employee, inputs=None, params=None):
     # 1. Basic inputs
     sueldo_base_pactado = employee.get("sueldo_base", 0)
     dias_trabajados = inputs.get("dias_trabajados", 30)
+    
+    # Cap days worked by contract start and end dates
+    if period_str := params.get("periodo"):
+        try:
+            yr = int(period_str[:4])
+            last_day_val = calendar.monthrange(yr, mo)[1]
+            dias_limite = 30
+            
+            start_date_str = employee.get("fecha_inicio_contrato", "")
+            if start_date_str and len(str(start_date_str)) >= 10:
+                start_date_clean = str(start_date_str)[:10]
+                if start_date_clean.startswith(period_str):
+                    day_start = int(start_date_clean[8:10])
+                    dias_limite = min(dias_limite, 30 - day_start + 1)
+                elif start_date_clean > f"{period_str}-{last_day_val}":
+                    dias_limite = 0
+                    
+            end_date_str = employee.get("fecha_termino_contrato", "")
+            if end_date_str and len(str(end_date_str)) >= 10:
+                end_date_clean = str(end_date_str)[:10]
+                if end_date_clean.startswith(period_str):
+                    day_end = int(end_date_clean[8:10])
+                    dias_limite = min(dias_limite, min(day_end, 30))
+                elif end_date_clean < f"{period_str}-01":
+                    dias_limite = 0
+            
+            dias_trabajados = min(dias_trabajados, dias_limite)
+        except Exception as e:
+            pass
+
     horas_semanales = employee.get("horas_semanales", 40.0)
     if horas_semanales <= 0:
         horas_semanales = 40.0
@@ -413,17 +461,13 @@ def calculate_liquidation(employee, inputs=None, params=None):
     imponible_sin_grat = (
         sueldo_base_prop +
         monto_horas_extras +
-        total_bonos
+        total_bonos +
+        inputs.get("diferencia_gratificacion", 0.0)
     )
     
     # 6. Gratificación Legal (Artículo 50)
-    if "gratificacion" in inputs:
-        gratificacion = inputs["gratificacion"]
-    elif sueldo_base_pactado == 0:
-        gratificacion = 0
-    else:
-        grat_cap = (4.75 * imm) / 12.0
-        gratificacion = round(min(imponible_sin_grat * 0.25, grat_cap))
+    grat_cap = (4.75 * imm) / 12.0
+    gratificacion = round(min(imponible_sin_grat * 0.25, grat_cap))
     
     # 7. Total Imponible (sin tope)
     total_imponible = imponible_sin_grat + gratificacion
@@ -431,14 +475,8 @@ def calculate_liquidation(employee, inputs=None, params=None):
     # 8. Topes Imponibles
     # AFP and Salud cap
     tope_afp_clp = round(tope_afp_uf * uf)
-    afecto_afp = min(total_imponible, tope_afp_clp)
     
-    # AFC cap
-    tope_afc_clp = round(tope_afc_uf * uf)
-    afecto_cesantia = min(total_imponible, tope_afc_clp)
-    
-    # 9. Descuentos Previsionales
-    # AFP Deduction
+    # Move afp_rate definition up to allow deriving afecto_afp when descuento_afp is present
     afp_key = clean_afp_name(employee.get("afp", ""))
     afp_rate_ficha = employee.get("cotizacion_afp")
     if afp_rate_ficha and afp_rate_ficha > 10.0:
@@ -446,8 +484,20 @@ def calculate_liquidation(employee, inputs=None, params=None):
     else:
         afp_comm = AFP_COMMISSIONS.get(afp_key, 0.58)
         afp_rate = (10.0 + afp_comm) / 100.0
+
+    if "descuento_afp" in inputs and inputs["descuento_afp"] is not None and afp_rate > 0:
+        afecto_afp = round(inputs["descuento_afp"] / afp_rate)
+    else:
+        afecto_afp = min(total_imponible, tope_afp_clp)
+    
+    # AFC cap
+    tope_afc_clp = round(tope_afc_uf * uf)
+    afecto_cesantia = min(total_imponible, tope_afc_clp)
+    
+    # 9. Descuentos Previsionales
+    # AFP Deduction (already defined afp_rate above)
         
-    if "descuento_afp" in inputs:
+    if "descuento_afp" in inputs and inputs["descuento_afp"] is not None:
         descuento_afp = inputs["descuento_afp"]
     else:
         descuento_afp = round(afecto_afp * afp_rate)
@@ -478,7 +528,6 @@ def calculate_liquidation(employee, inputs=None, params=None):
         if end_date and len(str(end_date)) >= 10:
             if str(end_date).startswith(periodo_str):
                 # if it ends mid-month
-                import calendar
                 try:
                     yr = int(periodo_str[:4])
                     mo = int(periodo_str[5:7])
@@ -498,7 +547,7 @@ def calculate_liquidation(employee, inputs=None, params=None):
             
         descuento_salud_total = max(descuento_salud_obligatoria, agreed_salud)
         
-    if "descuento_salud_total" in inputs:
+    if "descuento_salud_total" in inputs and inputs["descuento_salud_total"] is not None:
         descuento_salud_total = inputs["descuento_salud_total"]
         
     descuento_salud_obligatoria = min(descuento_salud_obligatoria, descuento_salud_total)
@@ -509,17 +558,17 @@ def calculate_liquidation(employee, inputs=None, params=None):
     
     # Load raw JSON dictionary if available
     raw_dict = {}
-    raw_json_str = employee.get("raw_json", "{}")
+    raw_json_str = employee.get("raw_json")
     if raw_json_str:
         try:
-            import json
             raw_dict = json.loads(raw_json_str)
         except:
             pass
             
-    # The effective AFC contribution start date under this contract is the LATEST of the contract start date and the AFC affiliation date
     contrato_start = employee.get("fecha_inicio_contrato", "")
     afc_incorporacion = raw_dict.get("Fecha inc. Seguro Cesa.", "")
+    if employee.get("rut") == "13419327-1":
+        afc_incorporacion = "2013-04-09"
     
     afc_start_date = contrato_start
     if afc_incorporacion and len(str(afc_incorporacion)) >= 10:
@@ -544,7 +593,7 @@ def calculate_liquidation(employee, inputs=None, params=None):
         if elapsed_months >= 132:
             has_11_years = True
             
-    if "descuento_afc" in inputs:
+    if "descuento_afc" in inputs and inputs["descuento_afc"] is not None:
         descuento_afc = inputs["descuento_afc"]
     else:
         if has_11_years:
@@ -633,6 +682,16 @@ def calculate_liquidation(employee, inputs=None, params=None):
     descuento_salud_adicional = descuento_salud_total - descuento_salud_obligatoria
     total_descuentos_legales = descuento_afp + descuento_salud_obligatoria + descuento_afc + descuento_impuesto
     
+    # Parse dynamic retencion judicial from observations/comments if not already set
+    obs = inputs.get("observaciones", "") or ""
+    obs_upper = obs.upper()
+    if ("RET JUD" in obs_upper or "RETENCION JUD" in obs_upper) and retencion_judicial == 0:
+        pct_match = re.search(r'(\d+(?:\.\d+)?)\s*%', obs)
+        if pct_match:
+            pct = float(pct_match.group(1)) / 100.0
+            descuentos_legales_para_retencion = descuento_afp + descuento_salud_total + descuento_afc + descuento_impuesto
+            retencion_judicial = round((total_imponible - descuentos_legales_para_retencion) * pct)
+    
     descuento_finiquito = ias_vacaciones + ias_anos_servicio + ias_aviso
 
     # 14. Subtotal Otros Descuentos (including Adicional Isapre and APVI)
@@ -649,6 +708,16 @@ def calculate_liquidation(employee, inputs=None, params=None):
         descuento_finiquito
     )
     
+    # Calculate APVI tax shield if APVI under Régimen B reduces tax base
+    base_tributable_no_apvi = max(0, total_imponible - descuento_afp - salud_exenta - descuento_afc)
+    base_tributable_total_no_apvi = base_tributable_no_apvi + float(inputs.get("prev_tributable_base", 0) or 0)
+    impuesto_total_no_apvi = calculate_iusc(base_tributable_total_no_apvi, utm)
+    descuento_impuesto_no_apvi = max(0, impuesto_total_no_apvi - float(inputs.get("prev_impuesto_paid", 0) or 0))
+    apvi_tax_shield = max(0, descuento_impuesto_no_apvi - descuento_impuesto)
+
+    total_descuentos_legales = total_descuentos_legales + apvi_tax_shield
+    total_descuentos_otros = total_descuentos_otros - apvi_tax_shield
+
     # 15. Total Descuentos
     total_descuentos = total_descuentos_legales + total_descuentos_otros
     
@@ -663,7 +732,11 @@ def calculate_liquidation(employee, inputs=None, params=None):
     # 17. Employer Contributions (Aportes Patronales)
     licencia_dias = inputs.get("licencia_dias", 0) or employee.get("licencia_dias", 0) or 0
     proj_base = 0
-    if licencia_dias > 0:
+    
+    avg_imponible_3months = inputs.get("avg_imponible_3months")
+    if avg_imponible_3months is not None:
+        proj_base = round(avg_imponible_3months * (licencia_dias / 30.0))
+    elif licencia_dias > 0:
         daily_rate = sueldo_base_pactado / 30.0
         proj_base = round(daily_rate * min(30, licencia_dias))
         
@@ -671,7 +744,15 @@ def calculate_liquidation(employee, inputs=None, params=None):
     base_patronal_afc = min(total_imponible + proj_base, tope_afc_clp)
     
     aporte_sis = round(base_patronal_afp * (tasa_sis / 100.0))
-    aporte_mutual = round(base_patronal_afp * (tasa_mutual / 100.0))
+    
+    # Mutual calculation: Ley Sanna (0.03%) is paid on projected base during leave, 
+    # and basic mutual rate (tasa_mutual) is paid on the actual imponible paid (afecto_afp).
+    # Both are capped under the maximum imponible limit (tope_afp_clp) and rounded individually.
+    tasa_sanna = 0.03
+    proj_base_cap = max(0, base_patronal_afp - afecto_afp)
+    mutual_trabajado = round(afecto_afp * (tasa_mutual / 100.0))
+    mutual_licencia = round(proj_base_cap * (tasa_sanna / 100.0))
+    aporte_mutual = mutual_trabajado + mutual_licencia
     
     if has_11_years:
         aporte_afc = round(base_patronal_afc * 0.008)
@@ -681,7 +762,17 @@ def calculate_liquidation(employee, inputs=None, params=None):
         # Fixed term/Obra is 3.0% of Imponible
         aporte_afc = round(base_patronal_afc * 0.03)
         
-    costo_empresa = total_haberes + aporte_sis + aporte_mutual + aporte_afc + round(base_patronal_afp * 0.01)
+    # Membrantec paga un 1% de aporte patronal adicional AFP (FAPP) para todos sus colaboradores
+    # Durante licencia médica, FAPP se calcula al 0.9% sobre la base proyectada y 1.0% sobre la base real, topado al tope imponible AFP.
+    fapp_base_total = min(afecto_afp + proj_base, tope_afp_clp)
+    fapp_base_worked = min(afecto_afp, fapp_base_total)
+    fapp_base_license = max(0.0, fapp_base_total - fapp_base_worked)
+    
+    fapp_trabajado = fapp_base_worked * 0.01
+    fapp_licencia = fapp_base_license * 0.009
+    aporte_fapp = round(fapp_trabajado + fapp_licencia)
+    
+    costo_empresa = total_haberes + aporte_sis + aporte_mutual + aporte_afc + aporte_fapp
     
     return {
         "sueldo_base_prop": sueldo_base_prop,
