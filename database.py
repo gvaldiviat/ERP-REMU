@@ -2158,12 +2158,17 @@ def setup():
     print("Database setup complete.")
 
 def get_audit_alerts(periodo=None):
+    import json
     conn = get_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     if periodo:
         cursor.execute("""
-            SELECT a.*, e.nombre 
+            SELECT a.id, a.rut, a.contrato, a.periodo, a.tipo_alerta, 
+                   coalesce(a.detalle, '') as descripcion, coalesce(a.fecha_deteccion, '') as fecha_creacion,
+                   0 as leida, 'descalce' as naturaleza, 0 as deriva_acumulada,
+                   '[]' as periodos_afectados, '[]' as variaciones,
+                   e.nombre, e.cargo, e.id_obra
             FROM alertas_auditoria a
             LEFT JOIN empleados e ON a.rut = e.rut AND a.contrato = e.contrato
             WHERE a.periodo = ?
@@ -2171,14 +2176,32 @@ def get_audit_alerts(periodo=None):
         """, (periodo,))
     else:
         cursor.execute("""
-            SELECT a.*, e.nombre 
+            SELECT a.id, a.rut, a.contrato, a.periodo, a.tipo_alerta, 
+                   coalesce(a.detalle, '') as descripcion, coalesce(a.fecha_deteccion, '') as fecha_creacion,
+                   0 as leida, 'descalce' as naturaleza, 0 as deriva_acumulada,
+                   '[]' as periodos_afectados, '[]' as variaciones,
+                   e.nombre, e.cargo, e.id_obra
             FROM alertas_auditoria a
             LEFT JOIN empleados e ON a.rut = e.rut AND a.contrato = e.contrato
             ORDER BY a.periodo DESC, a.rut, a.tipo_alerta
         """)
     rows = cursor.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    
+    parsed_rows = []
+    for r in rows:
+        d = dict(r)
+        d["periodos_afectados"] = "[]"
+        if d.get("variaciones"):
+            try:
+                d["variaciones"] = json.loads(d["variaciones"])
+            except:
+                d["variaciones"] = []
+        else:
+            d["variaciones"] = []
+        parsed_rows.append(d)
+        
+    return parsed_rows
 
 if __name__ == "__main__":
     setup()
